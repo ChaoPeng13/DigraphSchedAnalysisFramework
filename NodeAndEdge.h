@@ -1,0 +1,93 @@
+/* \file NodeAndEdge.h
+*  this file decribes the Node and Edge class. 
+*  directed graphs consist of a number of nodes and edges
+*  \author Chao Peng
+*  
+*  Changes
+*  ------
+*  28-Aug-2015 : initial revision (CP)
+*
+*/
+
+#ifndef NODEANDEDGE_H_
+#define NODEANDEDGE_H_
+
+#include <list>
+#include <string>
+
+using namespace std;
+
+class Node;
+class Edge;
+
+// ================================================================
+// \brief Class Node
+// ================================================================
+class Node {
+public:
+	//friend class Edge;
+	string name;  
+	int index; // identify the node
+
+	int scale;
+	int wcet;
+	int deadline;
+
+	list<Edge*> in;
+	list<Edge*> out;
+
+	list<Edge*> scc_in; // for strongly connected components
+	list<Edge*> scc_out; // for strongly connected components
+
+	// used to construct UDRT or GDRT
+	Node** unitNodes;
+	Node** granNodes;
+
+	enum Color {WHITE, GRAY, BLACK};
+	
+	// used to do deep-first-search
+	Color color; // color of node
+	int d; // discover time
+	int f; // finish time
+	Node* pi; // parent node in one tree
+
+	bool visited; // used to detect cycle
+
+public:
+	///=============================================================================================================================
+	/// Method functions
+	///=============================================================================================================================
+	Node(std::string _name);
+	Node(std::string _name, int _index, int _scale);
+	Node(std::string _name, int _scale, int _wcet, int _deadline);
+	Node(std::string _name, int _index, int _scale, int _wcet, int _deadline);
+
+	void set_wcet(int _wcet);
+	void set_deadline(int _deadline);
+
+	void set_color(Color _color);
+	Color get_color();
+
+	std::string toString();
+};
+
+// ================================================================
+// \brief Class Edge
+// ================================================================
+class Edge {
+public:
+	Node* src_node;
+	Node* snk_node;
+	int separationTime; // minimum separation time
+	double weight; // edge weight, used in the general graph 
+
+	bool visited;
+
+	Edge(Node* _src_node, Node* _snk_node):src_node(_src_node), snk_node(_snk_node) {}
+	~Edge() {}
+
+	void set_separation_time(int t) { separationTime = t; }
+	string toString() { return src_node->name+"->"+snk_node->name; }
+};
+
+#endif
