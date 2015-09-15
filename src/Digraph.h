@@ -12,6 +12,8 @@
 #ifndef DIGRAPH_H_
 #define DIGRAPH_H_
 
+//#include <vld.h>
+
 #include <vector>
 #include <fstream>
 #include <sstream>
@@ -119,7 +121,7 @@ public:
 
 		// todo: we assert that node_vec and edge_vec should be empty here.
 	}
-	~Digraph() {} // noisy destructor
+	~Digraph();
 
 	void add_node(Node* p_node) { 
 		this->node_vec.push_back(p_node); 
@@ -203,8 +205,8 @@ public:
 	int gcd;  // greatest common divisor of the minimum separation times
 
 	set<int> iSet; // set of indices for node->wcet != 0
-	map<Node*, int> origanal_node_to_index; // the index of the original node
-	map<int, Node*> index_to_orignal_node; // the original node at the index
+	map<Node*, int> original_node_to_index; // the index of the original node
+	map<int, Node*> index_to_original_node; // the original node at the index
 
 	/// the execution request matrix of the transformed unit digraph task (udrt)
 	/// with the greatest common divisor of the minimum separation times 
@@ -227,12 +229,15 @@ public:
 		gcd = digraph->gcd;
 		tf = digraph->tf;
 
+		unit_digraph = NULL;
+		gran_digraph = NULL;
+
 		iNode = 0;
 		iEdge = 0;
 
 		// TODO: we assert that node_vec and edge_vec should be empty here.
 	}
-	~UnitDigraph() {} // noisy destructor
+	~UnitDigraph();
 
 	void add_node(Node* p_node) { 
 		this->node_vec.push_back(p_node); 
@@ -248,8 +253,8 @@ public:
 		index_to_node[iNode] = p_node;
 		if (p_node->wcet != 0) {
 			iSet.insert(iNode);
-			origanal_node_to_index[o_node] = iNode;
-			index_to_orignal_node[iNode] = o_node;
+			original_node_to_index[o_node] = iNode;
+			index_to_original_node[iNode] = o_node;
 		}
 		iNode++;
 	}
@@ -318,12 +323,15 @@ public:
 		lfac = digraph->linear_factor;
 		tf = digraph->tf;
 
+		unit_digraph = NULL;
+		gran_digraph = NULL;
+
 		iNode = 0;
 		iEdge = 0;
 
 		// TODO: we assert that node_vec and edge_vec should be empty here.
 	}
-	~GranDigraph() {} // noisy destructor
+	~GranDigraph();
 
 	void add_node(Node* p_node) { this->node_vec.push_back(p_node); node_to_index.insert(pair<Node*,int>(p_node,iNode++));}
 	void add_edge(Edge* p_edge) { this->edge_vec.push_back(p_edge); edge_to_index.insert(pair<Edge*,int>(p_edge,iEdge++));}

@@ -57,6 +57,14 @@ double GraphAlgorithms::calculate_maximum_cycle_mean(Digraph* digraph) {
 
 		lambda = max(lambda, M[v]);
 	}
+
+	// release
+	for (int i=0; i<=n; i++) delete[] D[i];
+	delete[] D;
+
+	delete[] M;
+
+
 	lambda = lambda/digraph->gcd;
 	digraph->linear_factor = lambda;
 	return lambda;
@@ -109,6 +117,15 @@ double GraphAlgorithms::calculate_maximum_cycle_mean(GeneralDirectedGraph* gDigr
 		lambda = max(lambda, M[v]);
 	}
 	gDigraph->util = lambda;
+
+	// release D
+	for (int i=0; i<=n; i++)
+		delete[] D[i];
+	delete[] D;
+
+	// release M
+	delete[] M;
+
 	return lambda;
 }
 
@@ -185,6 +202,7 @@ vector<Digraph*> GraphAlgorithms::generate_strongly_connected_components(Digraph
 		}
 	}
 
+	delete[] node_array;
 	return sccs;
 }
 
@@ -302,7 +320,7 @@ vector<GeneralDirectedGraph*> GraphAlgorithms::generate_strongly_connected_compo
 			}
 		}
 	}
-
+	delete[] node_array;
 	return sccs;
 }
 
@@ -434,7 +452,7 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 	list<Edge*>::iterator e_iter;
 	for (n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
 		int index = digraph->node_to_index[*n_iter];
-		B[index*2][index*2] = - digraph->linear_factor;
+		B[index*2][index*2] = - digraph->linear_factor*digraph->gcd;
 	}
 
 	for (n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
@@ -443,12 +461,17 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 		for (e_iter = node->out.begin(); e_iter != node->out.end(); e_iter++) {
 			Edge* edge = *e_iter;
 			int snkIndx = digraph->node_to_index[edge->snk_node];
-			B[srcIndx*2][srcIndx*2+1] = max(B[srcIndx*2][srcIndx*2+1] , (double)node->wcet-digraph->linear_factor);
-			B[srcIndx*2+1][snkIndx*2] = max(B[srcIndx*2+1][snkIndx*2], (1.0-(double)edge->separationTime/digraph->gcd)*digraph->linear_factor);
+			//cout<<B[srcIndx*2][srcIndx*2+1]<<"\t"<<(double)node->wcet-digraph->linear_factor*digraph->gcd<<endl;
+			B[srcIndx*2][srcIndx*2+1] = max(B[srcIndx*2][srcIndx*2+1] , (double)node->wcet-digraph->linear_factor*digraph->gcd);
+			//cout<<B[srcIndx*2][srcIndx*2+1]<<"\t"<<(double)node->wcet-digraph->linear_factor<<endl;
+			B[srcIndx*2+1][snkIndx*2] = max(B[srcIndx*2+1][snkIndx*2], (1.0-(double)edge->separationTime/digraph->gcd)*digraph->linear_factor*digraph->gcd);
 		}
 	}
 
+	//Utility::output_matrix(B,n,n);
+
 	double** barB = MaxPlusAlgebra::calculate_metric_matrix(B,n);
+	//Utility::output_matrix(barB,n,n);
 	double W = 0;
 	for (int i=0; i<n; i++) for (int j=0; j<n; j++) W = max(W, barB[i][j]);
 	
@@ -463,7 +486,7 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 					break;
 				}
 			}
-			R = max(R, barB[i][j]-wcet*digraph->linear_factor/digraph->gcd);
+			R = max(R, barB[i][j]-wcet*digraph->linear_factor);
 		} 
 		else
 			R = max (R, barB[i][j]);
@@ -475,20 +498,26 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 	double b = NEG_INFINITY;
 	for (n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
 		Node* node = *n_iter;
-		int srcIndx = digraph->node_to_index[node];
-		for (e_iter = node->out.begin(); e_iter != node->out.end(); e_iter++) {
+		for (e_iter = node->in.begin(); e_iter != node->in.end(); e_iter++) {
 			Edge* edge = *e_iter;
-			a = max(a, node->wcet-digraph->linear_factor*(edge->separationTime+node->deadline)/digraph->gcd);
+			a = max(a, node->wcet-digraph->linear_factor*(edge->separationTime+node->deadline));
 		}
 
-		b = max(b, -digraph->linear_factor*node->deadline/digraph->gcd);
+		b = max(b, -digraph->linear_factor*node->deadline);
 	}
 
-	X = W+digraph->linear_factor + max(a,b);
+	X = W+digraph->linear_factor*digraph->gcd + min(a,b);
 
-	digraph->c_rbf = W + digraph->linear_factor;
-	digraph->c_ibf = R + digraph->linear_factor;
+	digraph->c_rbf = W + digraph->linear_factor*digraph->gcd;
+	digraph->c_ibf = R + digraph->linear_factor*digraph->gcd;
 	digraph->c_dbf = X;
+
+	// release
+	for (int i=0; i<n; i++) delete[] B[i];
+	delete[] B;
+
+	for (int i=0; i<n; i++) delete[] barB[i];
+	delete[] barB;
 }
 
 Digraph* GraphAlgorithms::generate_simple_digraph(Stateflow* sf) {
@@ -537,7 +566,7 @@ Digraph* GraphAlgorithms::generate_precise_digraph(Stateflow* sf) {
 		for (int j=0; j<m; j++) {
 			int time = sf->index_time[j];
 			if (time%tran->period == 0) {
-				nodes[i][j] = new Node("precise_v"+Utility::int_to_string(i)+"_"+Utility::int_to_string(j), sf->scale,tran->wcet,tran->period);
+				nodes[i][j] = new Node("precise_v"+Utility::int_to_string(i)+"_"+Utility::int_to_string(j), sf->scale,tran->wcet,sf->gcd);
 			} else
 				nodes[i][j] = NULL;
 		}
@@ -583,13 +612,20 @@ Digraph* GraphAlgorithms::generate_precise_digraph(Stateflow* sf) {
 
 	// add nodes
 	int index = 0;
-	for (int i=0; i<n; i++)
+	for (int i=0; i<n; i++) {
 		for (int j=0; j<m; j++) {
 			if (nodes[i][j] == NULL) continue;
-			if (nodes[i][j]->in.empty() && nodes[i][j]->out.empty()) continue;
+			if (nodes[i][j]->in.empty() && nodes[i][j]->out.empty()) { 
+				delete nodes[i][j]; 
+				nodes[i][j] = NULL;
+				continue;
+			}
 			nodes[i][j]->index = index++;
 			digraph->add_node(nodes[i][j]);
 		}
+	}
+	for (int i=0; i<n; i++) delete[] nodes[i];
+	delete[] nodes;
 
 	return digraph;
 }
@@ -653,9 +689,16 @@ bool GraphAlgorithms::isCyclic(Stateflow* sf) {
 	// Call the recursive helper function to detect cycle in different
 	// DFS trees
 	for (int i=0; i<n; i++)
-		if (isCyclicUtil(sf, i, visited, recStack))
-			return true;
+		if (isCyclicUtil(sf, i, visited, recStack)) {
+			// release visisted and recStack
+			delete[] visited;
+			delete[] recStack;
 
+			return true;
+		}
+
+	delete[] visited;
+	delete[] recStack;
 	return false;
 }
 

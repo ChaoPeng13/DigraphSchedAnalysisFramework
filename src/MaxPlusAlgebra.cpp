@@ -15,8 +15,16 @@ double** MaxPlusAlgebra::calculate_metric_matrix(double** B, int n) {
 	double** barB = new double*[n];
 	for (int i=0; i<n; i++) barB[i] = new double[n];
 	for (int i=0; i<n; i++) for (int j=0; j<n; j++) barB[i][j] = B[i][j];
-	for (int k=0; k<n; k++) for (int i=0; i<n; i++) for (int j=0; j<n; j++)
+	for (int k=0; k<n; k++) for (int i=0; i<n; i++) for (int j=0; j<n; j++) {
+		//std::cout<< barB[i][j] <<"\t"<< barB[i][k] <<"\t"<<barB[k][j]<<std::endl;
+		//double a = barB[i][j];
+		//double b = barB[i][k];
+		//double c = barB[k][j];
 		barB[i][j] = std::max(barB[i][j], barB[i][k]+barB[k][j]);
+		//a = barB[i][j];
+		//b = barB[i][k]; 
+		//std::cout<< barB[i][j] << std::endl;
+	}
 
 	return barB;
 }
@@ -116,6 +124,27 @@ int MaxPlusAlgebra::calculate_linear_period (double** A, int n, double lfac, boo
 		//std::cout<<"gcd = "<<gcd<<std::endl;
 		lcm = Utility::math_lcm(lcm, gcd);
 	}
+
+	// release memory
+	// release B
+	for (int i=0; i<n; i++) delete[] B[i];
+	delete[] B;
+	// release barB
+	for (int i=0; i<n; i++) delete[] barB[i];
+	delete[] barB;
+	// release C
+	for (int i=0; i<n; i++) delete[] C[i];
+	delete[] C;
+	// release isVisted
+	delete[] isVisited;
+	// release hcc_vec
+	hcc_vec.clear();
+	// release D
+	for (int i=0; i<n; i++) delete[] D[i];
+	delete[] D;
+	// release dotB
+	for (int i=0; i<n; i++) delete[] dotB[i];
+	delete[] dotB;
 
 	return lcm;
 }

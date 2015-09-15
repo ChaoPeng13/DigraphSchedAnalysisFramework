@@ -1,3 +1,4 @@
+#if 0
 #include <gtest/gtest.h>
 
 #include "SchedulabilityAnalysis.h"
@@ -21,6 +22,7 @@ TEST(SchedulabilityAnalysisTest, DigraphSchedulable)
 	}
 }
 
+/*
 TEST(SchedulabilityAnalysisTest, StateflowSchedulable)
 {
 	int num = 10;
@@ -31,6 +33,8 @@ TEST(SchedulabilityAnalysisTest, StateflowSchedulable)
 		int nRBFArbitrary = 0;
 		int nIBFStatic = 0;
 		int nIBFArbitrary = 0;
+
+		cout<<NEG_INFINITY+200<<endl;
 
 		for (int run=0; run<10; run++) {
 			cout<<"Run-"<<run<<endl;
@@ -45,3 +49,6 @@ TEST(SchedulabilityAnalysisTest, StateflowSchedulable)
 		cout<<"            "<<total<<"\tnIBFStatic="<<nIBFStatic<<"\tnIBFArbitrary="<<nIBFArbitrary<<endl;
 	}
 }
+*/
+
+#endif

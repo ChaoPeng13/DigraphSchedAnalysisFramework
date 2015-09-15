@@ -1,3 +1,4 @@
+#if 0
 #include <gtest/gtest.h>
 
 #include "Stateflow.h"
@@ -399,3 +400,5 @@ TEST(StateflowTest, Stateflow0)
 	}
 
 }
+
+#endif

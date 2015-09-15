@@ -34,6 +34,38 @@ GeneralDirectedGraph::GeneralDirectedGraph(int n, double** matrix) {
 	}
 }
 
+GeneralDirectedGraph::~GeneralDirectedGraph() {
+	//cout<<"General Directed Graph Destruction Start"<<endl;
+	
+	for (vector<GeneralDirectedGraph*>::iterator iter = sccs.begin(); iter != sccs.end(); iter++) {
+		(*iter)->node_vec.clear();
+		(*iter)->edge_vec.clear();
+		delete *iter;
+		*iter = NULL;
+	}
+
+	sccs.clear();
+	vector<GeneralDirectedGraph*>().swap(sccs);
+
+	// release nodes
+	for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	node_vec.clear();
+	vector<Node*>().swap(node_vec);
+
+	// release edges
+	for (vector<Edge*>::iterator iter = edge_vec.begin(); iter != edge_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	edge_vec.clear();
+	vector<Edge*>().swap(edge_vec);
+
+	//cout<<"General Directed Graph Destruction End"<<endl;
+}
+
 void GeneralDirectedGraph::generate_strongly_connected_components() {
 	this->sccs = GraphAlgorithms::generate_strongly_connected_components(this);
 	if (sccs.size() == 1) strongly_connected = true;

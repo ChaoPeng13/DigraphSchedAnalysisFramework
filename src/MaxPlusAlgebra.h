@@ -11,6 +11,8 @@
 #ifndef MAXPLUSALGEBRA_H
 #define MAXPLUSALGEBRA_H
 
+//#include <vld.h>
+
 #include <algorithm>
 #include <vector>
 #include <map>

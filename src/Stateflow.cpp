@@ -3,6 +3,76 @@
 #include "MaxPlusAlgebra.h"
 #include "GraphAlgorithms.h"
 
+Stateflow::~Stateflow() {
+	//cout<<"Stateflow Destruction Start"<<endl;
+	state_index.clear();
+	index_state.clear();
+	tran_index.clear();
+	index_tran.clear();
+	// release states
+	for (vector<State*>::iterator iter = states.begin(); iter != states.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	states.clear();
+		
+	// release transitions
+	for (vector<Transition*>::iterator iter = trans.begin(); iter != trans.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	trans.clear();
+
+	rbf_time_instances.clear();
+	index_time.clear();
+	time_index.clear();
+
+	// delete rbfs
+	for (int i=0; i<n_state; i++) {
+		for (int j=0; j<n_state; j++) {
+			for (int s=0; s< n_time_instance; s++) {
+				delete[] rbfs[i][j][s];
+			}
+			delete[] rbfs[i][j];
+		}
+		delete[] rbfs[i];
+	}
+	delete[] rbfs;
+
+	//rbf_hyperperiod.clear();
+	//ibf_hyperperiod.clear();
+		
+	// delete execution request matrix
+	for(map<int, double**>::iterator iter = exec_req_matrix_power.begin(); iter != exec_req_matrix_power.end(); iter++) {
+		double** temp = iter->second;
+		for (int i=0; i<n_state; i++) {
+			delete[] temp[i];
+		}
+		delete[] temp;
+	}
+	exec_req_matrix_power.clear();
+
+	if (simple_digraph != NULL) delete simple_digraph;
+	if (precise_digraph != NULL) delete precise_digraph;
+	//if (exec_digraph != NULL) delete exec_digraph;
+
+	// release rbf_vec
+	for (vector<StartFinishTime*>::iterator iter = rbf_vec.begin(); iter != rbf_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	rbf_vec.clear();
+
+	// release ibf_vec
+	for (vector<StartFinishTime*>::iterator iter = ibf_vec.begin(); iter != ibf_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	ibf_vec.clear();
+
+	//cout<<"Staeflow End"<<endl;
+}
+
 void Stateflow::add_state(State* state) {
 	states.push_back(state);
 	state_index[state] = iState;
@@ -89,11 +159,12 @@ void Stateflow::generate_ibf_time_instances() {
 void Stateflow::generate_rbfs() {
 	// Sort the transitions by the priorities
 	//sort(trans.begin(),trans.end(),less_compare_trans);
-
-	rbfs = new double***[n_state];
-	for (int i=0; i<n_state; i++) rbfs[i] = new double**[n_state];
-	for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++) rbfs[i][j] = new double*[n_time_instance];
-	for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++) for (int k=0; k<n_time_instance; k++) rbfs[i][j][k] = new double[n_time_instance];
+	if (rbfs == NULL) { // allocate memory for rbfs
+		rbfs = new double***[n_state];
+		for (int i=0; i<n_state; i++) rbfs[i] = new double**[n_state];
+		for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++) rbfs[i][j] = new double*[n_time_instance];
+		for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++) for (int k=0; k<n_time_instance; k++) rbfs[i][j][k] = new double[n_time_instance];
+	}
 
 	for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++)
 		for (int s=0; s<n_time_instance; s++) for (int f=0; f<n_time_instance; f++) {
@@ -144,8 +215,10 @@ void Stateflow::generate_ibfs() {
 }
 
 void Stateflow::generate_exec_req_matrix() {
-	exec_req_matrix = new double*[n_state];
-	for (int i=0; i<n_state; i++) exec_req_matrix[i] = new double[n_state];
+	if (exec_req_matrix == NULL) { // allocate memory
+		exec_req_matrix = new double*[n_state];
+		for (int i=0; i<n_state; i++) exec_req_matrix[i] = new double[n_state];
+	}
 
 	for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++) {
 		exec_req_matrix[i][j] = rbfs[i][j][0][n_time_instance-1];
@@ -199,6 +272,7 @@ void Stateflow::calculate_linear_factor() {
 		exec_digraph->generate_strongly_connected_components();
 		exec_digraph->calculate_untilization();
 		lfac = exec_digraph->util/hyperperiod;
+		delete exec_digraph;
 	}
 }
 
@@ -238,14 +312,16 @@ void Stateflow::calculate_tf0(Stateflow** stateflows, int i) {
 
 /// Generate a simple digraph for stateflow
 void Stateflow::generate_simple_digraph() {
-	simple_digraph = GraphAlgorithms::generate_simple_digraph(this);
+	if (simple_digraph != NULL) return;
 
+	simple_digraph = GraphAlgorithms::generate_simple_digraph(this);
 	// prepare for calculating linear upper bounds
 	simple_digraph->prepare_digraph();
 }
 
 /// Generate a precese digraph for stateflow
 void Stateflow::generate_precise_digraph() {
+	if (precise_digraph != NULL) return;
 	precise_digraph = GraphAlgorithms::generate_precise_digraph(this);
 
 	// prepare for calculating linear upper bounds
@@ -372,8 +448,10 @@ double Stateflow::calculate_rbf_within_multiple_hyperperiods(int start, int fini
 	}
 	
 
-	if (n>1) midd = exec_req_matrix_power[n-1];
-
+	if (n>1) {
+		for (int i=0; i<n_state; i++) for (int j=0; j<n_state;j++)
+			midd[i][j] = exec_req_matrix_power[n-1][i][j];
+	}
 	
 	for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++) {
 		post[i][j] = calculate_rbf_within_one_hyperperiod(i,j,0,f);
@@ -395,6 +473,16 @@ double Stateflow::calculate_rbf_within_multiple_hyperperiods(int start, int fini
 		rbf = max(rbf, rbfij);
 	}
 
+	// release prev, midd and post matrices
+	for (int i=0; i<n_state; i++) {
+		delete[] prev[i];
+		delete[] midd[i];
+		delete[] post[i];
+	}
+	delete[] prev;
+	delete[] midd;
+	delete[] post;
+
 	return rbf;
 }
 
@@ -412,7 +500,7 @@ double Stateflow::get_ibf(int start, int finish) { // return ibf[s,f)
 	int n = nf - ns;
 	f = n*hyperperiod+f;
 
-	for (vector<StartFinishTime*>::iterator iter = rbf_vec.begin(); iter != rbf_vec.end(); iter++) {
+	for (vector<StartFinishTime*>::iterator iter = ibf_vec.begin(); iter != ibf_vec.end(); iter++) {
 		StartFinishTime* sft = *iter;
 		if (sft->start == s && sft->finish == f)
 			return sft->value;
@@ -426,7 +514,7 @@ double Stateflow::get_ibf(int start, int finish) { // return ibf[s,f)
 		rt = calculate_ibf_within_multiple_hyperperiods(s,f);
 
 	StartFinishTime* sft = new StartFinishTime(s,f,rt);
-	rbf_vec.push_back(sft);
+	ibf_vec.push_back(sft);
 
 	return rt;
 }
@@ -490,7 +578,10 @@ double Stateflow::calculate_ibf_within_multiple_hyperperiods(int start, int fini
 	}
 	
 
-	if (n>1) midd = exec_req_matrix_power[n-1];
+	if (n>1) {
+		for (int i=0; i<n_state; i++) for (int j=0; j<n_state;j++)
+			midd[i][j] = exec_req_matrix_power[n-1][i][j];
+	}
 
 	
 	for (int i=0; i<n_state; i++) for (int j=0; j<n_state; j++) {
@@ -512,6 +603,16 @@ double Stateflow::calculate_ibf_within_multiple_hyperperiods(int start, int fini
 		}
 		ibf = max(ibf, ibfij);
 	}
+
+	// release prev, midd and post matrices
+	for (int i=0; i<n_state; i++) {
+		delete[] prev[i];
+		delete[] midd[i];
+		delete[] post[i];
+	}
+	delete[] prev;
+	delete[] midd;
+	delete[] post;
 
 	return ibf;
 }
@@ -591,10 +692,14 @@ double Stateflow::get_dbf(int t) { // return dbf(t)
 
 void Stateflow::write_graphviz(ostream& out) {
 	out << "digraph G {" <<endl;
+	for (vector<State*>::iterator iter = states.begin(); iter != states.end(); iter++) {
+		State* state = *iter;
+		out << state->name << " [label=\" " << state->name << " \"]" << endl;
+	}
 	for (vector<Transition*>::iterator iter = trans.begin(); iter != trans.end(); iter++) {
 		Transition* transition = *iter;
 		out << transition->src->name << " -> " << transition->snk->name 
-			<< " [label=\"" << transition->wcet << "/" << transition->period << "\"]" << endl;
+			<< " [label=\" " << transition->wcet << " / " << transition->period << " \"]" << endl;
 	}
 	out << "}" <<endl;
 }

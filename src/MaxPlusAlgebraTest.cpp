@@ -1,4 +1,5 @@
-﻿#include <gtest/gtest.h>
+﻿#if 0
+#include <gtest/gtest.h>
 
 #include "MaxPlusAlgebra.h"
 #include "Utility.h"
@@ -102,3 +103,5 @@ TEST(MaxPlusAlgebraTest, LinearMatrixDefect)
 	}
 	
 }
+
+#endif

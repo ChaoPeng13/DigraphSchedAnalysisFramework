@@ -314,6 +314,8 @@ Stateflow* RandomGenerator::generate_one_stateflow(int index, int scale, int nSt
 	}
 	//cout<<count<<endl;
 	//sf->write_graphviz(cout);
+	connected.clear();
+	delete[] states;
 	return sf;
 }
 
@@ -328,7 +330,7 @@ Stateflow** RandomGenerator::generate_stateflow_system(int num, int maxState, do
 
 		Stateflow* sf = generate_one_stateflow(i,STATEFLOW_SCALE,numState, numTran);
 
-		double* tran_util = Utility::uniformly_distributed(numTran,1);
+		//double* tran_util = Utility::uniformly_distributed(numTran,1);
 		int k=0;
 		for (vector<Transition*>::iterator iter = sf->trans.begin(); iter != sf->trans.end(); iter++) {
 			Transition* t = *iter;
@@ -389,6 +391,10 @@ Stateflow** RandomGenerator::generate_stateflow_system(int num, int maxState, do
 	Stateflow** copy = new Stateflow*[num];
 	for (int i=0; i<num; i++) copy[i] = sfs[i];
 	for (int i=0; i<num; i++) sfs[order[i]] = copy[i];
+
+	delete[] util;
+	delete[] order;
+	delete[] copy;
 
 	return sfs;
 }

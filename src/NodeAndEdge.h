@@ -12,6 +12,8 @@
 #ifndef NODEANDEDGE_H_
 #define NODEANDEDGE_H_
 
+//#include <vld.h>
+
 #include <list>
 #include <string>
 
@@ -57,10 +59,12 @@ public:
 	///=============================================================================================================================
 	/// Method functions
 	///=============================================================================================================================
+	Node(Node* pNode);
 	Node(std::string _name);
 	Node(std::string _name, int _index, int _scale);
 	Node(std::string _name, int _scale, int _wcet, int _deadline);
 	Node(std::string _name, int _index, int _scale, int _wcet, int _deadline);
+	~Node();
 
 	void set_wcet(int _wcet);
 	void set_deadline(int _deadline);
@@ -83,6 +87,7 @@ public:
 
 	bool visited;
 
+	Edge(Edge* edge);
 	Edge(Node* _src_node, Node* _snk_node):src_node(_src_node), snk_node(_snk_node) {}
 	~Edge() {}
 

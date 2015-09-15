@@ -11,6 +11,8 @@
 #ifndef GRAPHALGORITHMS_H_
 #define GRAPHALGORITHMS_H_
 
+//#include <vld.h>
+
 #include "Digraph.h"
 #include "GeneralDirectedGraph.h"
 #include "Stateflow.h"

@@ -20,6 +20,46 @@ using namespace std;
 // ===========================================================================
 // Method functions of Digraph class
 // ===========================================================================
+Digraph::~Digraph() {
+	//cout<<"Digraph Destruction Start"<<endl;
+	// release sccs
+	for (vector<Digraph*>::iterator iter = sccs.begin(); iter != sccs.end(); iter++) {
+		(*iter)->node_vec.clear();
+		(*iter)->edge_vec.clear();
+		delete *iter;
+		*iter = NULL;
+	}
+	sccs.clear();
+	
+	// release nodes
+	//cout<<node_vec.empty()<<endl;
+	if (iNode != 0) {
+		for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++) {
+			delete *iter;
+			*iter = NULL;
+		}
+	}
+	node_vec.clear();
+
+	// release edges
+	if (iEdge!=0) {
+		for (vector<Edge*>::iterator iter = edge_vec.begin(); iter != edge_vec.end(); iter++) {
+			delete *iter;
+			*iter = NULL;
+		}
+	}
+	edge_vec.clear();
+
+	node_to_index.clear();
+	index_to_node.clear();
+	edge_to_index.clear();
+	index_to_edge.clear();
+
+	if(unit_digraph != NULL) delete unit_digraph;
+	if(gran_digraph != NULL) delete gran_digraph;
+
+	//cout<<"Digraph End"<<endl;
+}
 
 void Digraph::prepare_digraph() {
 	 generate_strongly_connected_components();
@@ -173,6 +213,59 @@ void Digraph::write_graphviz(ostream& out) {
 // ===========================================================================
 // Method functions of UnitDigraph class
 // ===========================================================================
+UnitDigraph::~UnitDigraph() {
+	//cout<<"UnitDigraph Destruction Start"<<endl;
+
+	// release nodes
+	for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	node_vec.clear();
+
+	// release edges
+	for (vector<Edge*>::iterator iter = edge_vec.begin(); iter != edge_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	edge_vec.clear();
+
+	node_to_index.clear();
+	index_to_node.clear();
+	edge_to_index.clear();
+	index_to_edge.clear();
+
+	// release sccs
+	for (vector<Digraph*>::iterator iter = sccs.begin(); iter != sccs.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	sccs.clear();
+
+	if (unit_digraph != NULL) delete unit_digraph;
+	if (gran_digraph != NULL) delete gran_digraph;
+
+	iSet.clear();
+	original_node_to_index.clear();
+	index_to_original_node.clear();
+
+	// release matrix
+	/*
+	for (int i=0; i<n_size; i++) {
+		delete[] matrix[i];
+	}
+	delete[] matrix;
+	*/
+
+	// release matrix power
+	// TODO:
+
+	matrix_map.clear();
+	maximum_element_map.clear();
+
+	//cout<<"UnitDigraph End"<<endl;
+}
+
 /// \brief prepare function
 void UnitDigraph::prepare(bool debug) {
 	// calculate gcd
@@ -312,7 +405,7 @@ void UnitDigraph::scc_generate_unit_digraph() {
 }
 
 void UnitDigraph::generate_exec_request_matrix() {
-	matrix = GraphAlgorithms::generate_exec_request_matrix(this,iSet);
+	matrix = GraphAlgorithms::generate_exec_request_matrix(this);
 	matrix_map[1]= matrix; // the execution request matrix of (0,gcd]
 	double maximum_element = MaxPlusAlgebra::maximum_element(matrix, n_size);
 	int temp = static_cast<int> (maximum_element);
@@ -322,12 +415,12 @@ void UnitDigraph::generate_exec_request_matrix() {
 
 void UnitDigraph::calculate_linear_period(bool debug) {
 	if (origin->strongly_connected)
-		lper = MaxPlusAlgebra::calculate_linear_period(matrix,n_size,lfac,debug);
+		lper = MaxPlusAlgebra::calculate_linear_period(matrix,n_size,lfac*gcd,debug);
 }
 
 void UnitDigraph::calculate_linear_defect() {
 	if (origin->strongly_connected)
-		ldef = MaxPlusAlgebra::calculate_linear_defect(matrix_map, maximum_element_map, n_size, lfac*gcd, lper, origin->tf);
+		ldef = MaxPlusAlgebra::calculate_linear_defect(matrix_map, maximum_element_map, n_size, lfac*gcd, lper*gcd, origin->tf);
 }
 
 void UnitDigraph::calculate_exec_request_matrix_power(int tf) {
@@ -355,8 +448,8 @@ int UnitDigraph::get_rbf(int t) {
 }
 
 int UnitDigraph::calculate_demand_bound_function(int i, int j, int t) {
-	Node* first = index_to_orignal_node[i];
-	Node* last = index_to_orignal_node[j];
+	Node* first = index_to_original_node[i];
+	Node* last = index_to_original_node[j];
 	int tprim = 1000*scale;
 	for (list<Edge*>::iterator iter = last->in.begin(); iter != last->in.end(); iter++) {
 		Edge* edge = *iter;
@@ -385,6 +478,55 @@ int UnitDigraph::get_dbf(int t) {
 // ===========================================================================
 // Method functions of GranDigraph class
 // ===========================================================================
+GranDigraph::~GranDigraph() {
+	//cout<<"GranDigraph Destruction Start"<<endl;
+
+	// release nodes
+	for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	node_vec.clear();
+
+	// release edges
+	for (vector<Edge*>::iterator iter = edge_vec.begin(); iter != edge_vec.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	edge_vec.clear();
+
+	node_to_index.clear();
+	index_to_node.clear();
+	edge_to_index.clear();
+	index_to_edge.clear();
+
+	// release sccs
+	for (vector<Digraph*>::iterator iter = sccs.begin(); iter != sccs.end(); iter++) {
+		delete *iter;
+		*iter = NULL;
+	}
+	sccs.clear();
+
+	if (unit_digraph != NULL) delete unit_digraph;
+	if (gran_digraph != NULL) delete gran_digraph;
+
+	// release matrix
+	/*
+	for (int i=0; i<n_size; i++) {
+		delete[] matrix[i];
+	}
+	delete[] matrix;
+	*/
+
+	// release matrix power
+	// TODO:
+
+	matrix_map.clear();
+	maximum_element_map.clear();
+
+	//cout<<"GranDigraph End"<<endl;
+}
+
 /// \brief prepare function
 void GranDigraph::prepare(bool debug) {
 

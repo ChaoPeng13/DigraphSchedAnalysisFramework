@@ -1,3 +1,5 @@
+#if 0
+
 #include <gtest/gtest.h>
 
 #include "RandomGenerator.h"
@@ -94,3 +96,5 @@ TEST(RandomGeneratorTest, RandomStateflow)
 	}
 	cout<<"Irreducible number = "<<count<<endl;
 }
+
+#endif

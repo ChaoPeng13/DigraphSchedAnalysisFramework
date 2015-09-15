@@ -12,6 +12,8 @@
 #ifndef STATEANDTRANSITION_H_
 #define STATEANDTRANSITION_H_
 
+//#include <vld.h>
+
 #include <string>
 #include <vector>
 #include "Utility.h"
@@ -36,6 +38,11 @@ public:
 	State(string _name, int _index) {
 		name = _name;
 		index = _index;
+	}
+	
+	~State() {
+		in.clear();
+		out.clear();
 	}
 
 	std::string toString() {

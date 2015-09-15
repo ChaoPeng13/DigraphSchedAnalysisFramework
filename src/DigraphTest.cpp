@@ -1,4 +1,5 @@
-﻿#include <gtest/gtest.h>
+﻿#if 0
+#include <gtest/gtest.h>
 
 #include "Digraph.h"
 #include "MaxPlusAlgebra.h"
@@ -392,8 +393,8 @@ TEST(DigraphTest, Digraph2)
 
 	bool test = compare_tow_matrices(matrix,digraph->unit_digraph->matrix,9);
 
-	// Utility::output_matrix(digraph->unit_digraph->matrix, digraph->unit_digraph->n_size, digraph->unit_digraph->n_size);
-	//EXPECT_EQ(test, true);
+	Utility::output_matrix(digraph->unit_digraph->matrix, digraph->unit_digraph->n_size, digraph->unit_digraph->n_size);
+	EXPECT_EQ(test, true);
 	EXPECT_EQ(digraph->unit_digraph->lper, 3);
 
 	//cout<<"linear defect = " << digraph->unit_digraph->ldef<<endl;
@@ -598,3 +599,77 @@ TEST(DigraphTest, Digraph3)
 	}
  }
 
+ /**
+ * Test karp's algorithm for calculating the maximum cycle mean
+ */
+TEST(DigraphTest, Digraph5)
+{
+	generateDigraph2();
+
+	for (vector<Node*>::iterator iter = digraph->node_vec.begin(); iter != digraph->node_vec.end(); iter++) {
+		Node* node = *iter;
+		node->wcet = node->wcet*1000;
+		node->deadline = node->deadline*1000;
+	}
+
+	for (vector<Edge*>::iterator iter = digraph->edge_vec.begin(); iter != digraph->edge_vec.end(); iter++) {
+		Edge* edge = *iter;
+		edge->separationTime = edge->separationTime*1000;
+	}
+
+
+	digraph->generate_strongly_connected_components();
+	vector<Digraph*> sccs = digraph->sccs;
+	EXPECT_EQ(sccs.size(),1);
+
+	if (output) {
+		for (vector<Digraph*>::iterator iter = sccs.begin(); iter != sccs.end(); iter++) {
+			(*iter)->write_graphviz(std::cout);
+		}
+	}
+
+	digraph->check_strongly_connected();
+	EXPECT_EQ(digraph->strongly_connected,true);
+
+	digraph->calculate_gcd();
+	EXPECT_EQ(digraph->gcd,1000);
+
+	digraph->calculate_linear_factor();
+	EXPECT_EQ(digraph->linear_factor,2.0/3);
+
+	digraph->calculate_linear_upper_bounds();
+	EXPECT_EQ(digraph->c_sum,5000);
+	EXPECT_EQ((int)(digraph->c_rbf), 2000);
+	EXPECT_EQ((int)(digraph->c_ibf), 666);
+	EXPECT_EQ((int)(digraph->c_dbf), 666);
+
+	digraph->tf = 100;
+
+	digraph->prepare_rbf_calculation(false);
+
+	double matrix[9][9] = {{0,2,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY},
+	{NEG_INFINITY,0,0,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY},
+	{0,NEG_INFINITY,0,0,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY},
+	{NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,0,0,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY},
+	{NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,0,2,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY},
+	{NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,0,0,NEG_INFINITY,NEG_INFINITY},
+	{NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,0,0,NEG_INFINITY},
+	{NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,0,1},
+	{0,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,0,NEG_INFINITY,NEG_INFINITY,NEG_INFINITY,0}};
+
+	bool test = compare_tow_matrices(matrix,digraph->unit_digraph->matrix,9);
+
+	//Utility::output_matrix(digraph->unit_digraph->matrix, digraph->unit_digraph->n_size, digraph->unit_digraph->n_size);
+	//EXPECT_EQ(test, true);
+	EXPECT_EQ(digraph->unit_digraph->lper, 3);
+
+	//cout<<"linear defect = " << digraph->unit_digraph->ldef<<endl;
+
+	// test (ldef,ldef+10]
+	map<int,double**> matrices;
+	matrices[1] = digraph->unit_digraph->matrix;
+	int ldef = MaxPlusAlgebra::calculate_linear_defect(matrices,9,2.0/3,3,100);
+
+	EXPECT_EQ(digraph->unit_digraph->ldef, ldef);
+}
+#endif

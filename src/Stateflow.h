@@ -11,6 +11,8 @@
 #ifndef STATEFLOW_H_
 #define STATEFLOW_H_
 
+//#include <vld.h>
+
 #include <vector>
 #include <fstream>
 #include <sstream>
@@ -83,11 +85,11 @@ public:
 	double**** rbfs; // four-dimension matrix. rbf[i][j][s][f] = rbf_{i,j}[s,f)
 
 
-	set<int> ibf_time_instances; // time instances for ibf
-	double**** ibfs; // four-dimension matrix. ibf[i][j][s][f] = ibf_{i,j}[s,f)
+	//et<int> ibf_time_instances; // time instances for ibf
+	//double**** ibfs; // four-dimension matrix. ibf[i][j][s][f] = ibf_{i,j}[s,f)
 
-	map<StartFinishTime*, double> rbf_hyperperiod; // rbf of s and f within one hyperperiod  
-	map<StartFinishTime*, double> ibf_hyperperiod; // ibf of s and f within one hyperperiod
+	//map<StartFinishTime*, double> rbf_hyperperiod; // rbf of s and f within one hyperperiod  
+	//map<StartFinishTime*, double> ibf_hyperperiod; // ibf of s and f within one hyperperiod
 
 	double** exec_req_matrix; // execution request matrix x^{k}_{i,j}=rbf_{i,j}[0,kH_F)
 	map<int, double**> exec_req_matrix_power; // execution request matrix
@@ -118,6 +120,7 @@ public:
 	double max_tf2;
 
 	vector<StartFinishTime*> rbf_vec; // vector of rbf[s,f)
+	vector<StartFinishTime*> ibf_vec; // vector of ibf[s,f)
 
 	///=============================================================================================================================
 	/// method functions
@@ -128,6 +131,13 @@ public:
 		iTran = 0;
 
 		isIrred = false;
+
+		rbfs = NULL;
+		exec_req_matrix = NULL;
+
+		simple_digraph = NULL;
+		precise_digraph = NULL;
+		exec_digraph = NULL;
 	}
 
 	Stateflow(int _index, int _scale) {
@@ -136,62 +146,18 @@ public:
 		iState = 0;
 		iTran = 0;
 
+		rbfs = NULL;
+		exec_req_matrix = NULL;
+		exec_digraph = NULL;
+
 		isIrred = false;
+
+		simple_digraph = NULL;
+		precise_digraph = NULL;
+		exec_digraph = NULL;
 	}
 
-	~Stateflow(){
-		/*
-		state_index.clear();
-		index_state.clear();
-		tran_index.clear();
-		index_tran.clear();
-		// release states
-		for (vector<State*>::iterator iter = states.begin(); iter != states.end(); iter++) {
-			delete *iter;
-			*iter = NULL;
-		}
-		states.clear();
-
-		// release transitions
-		for (vector<Transition*>::iterator iter = trans.begin(); iter != trans.end(); iter++) {
-			delete *iter;
-			*iter = NULL;
-		}
-		trans.clear();
-
-		rbf_time_instances.clear();
-		index_time.clear();
-		time_index.clear();
-
-		// delete rbfs
-		for (int i=0; i<n_state; i++) {
-			for (int j=0; j<n_state; j++) {
-				for (int s=0; s< n_time_instance; s++) {
-					delete rbfs[i][j][s];
-				}
-				delete rbfs[i][j];
-			}
-			delete rbfs[i];
-		}
-		delete rbfs;
-
-		rbf_hyperperiod.clear();
-		
-		// delete execution request matrix
-		for(map<int, double**>::iterator iter = exec_req_matrix_power.begin(); iter != exec_req_matrix_power.end(); iter++) {
-			for (int i=0; i<n_state; i++) {
-				delete (iter->second)[i];
-			}
-			delete iter->second;
-		}
-		exec_req_matrix_power.clear();
-
-		delete simple_digraph;
-		delete precise_digraph;
-		delete exec_digraph;
-		*/
-
-	}
+	~Stateflow();
 
 	void add_state(State* state); // add new state
 	void add_transition(Transition* tran); // add new transition

@@ -12,6 +12,8 @@
 #ifndef GENERALDIRECTEDGRAPH_H_
 #define GENERALDIRECTEDGRAPH_H_
 
+//#include <vld.h>
+
 #include<vector>
 
 #include "NodeAndEdge.h"
@@ -34,7 +36,7 @@ public:
 	///=============================================================================================================================
 	GeneralDirectedGraph();
 	GeneralDirectedGraph(int n, double** matrix);
-	~GeneralDirectedGraph() {}
+	~GeneralDirectedGraph();
 
 	void add_node(Node* p_node) { 
 		this->node_vec.push_back(p_node); 
