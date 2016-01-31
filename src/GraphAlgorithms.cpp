@@ -7,7 +7,7 @@
 /// R.M. Karp, A characterization of the minimum cycle mean in a digraph, Discrete Math. 23 (1978) 309�11.
 /// Note: this function is just right when operating on UDRT in case of the length.
 double GraphAlgorithms::calculate_maximum_cycle_mean(Digraph* digraph) {
-	digraph->calculate_gcd();
+	digraph->calculate_period_gcd();
 	UnitDigraph* unitD = new UnitDigraph(digraph);
 	digraph->unit_digraph = unitD;
 
@@ -65,9 +65,78 @@ double GraphAlgorithms::calculate_maximum_cycle_mean(Digraph* digraph) {
 	delete[] M;
 
 
-	lambda = lambda/digraph->gcd;
+	lambda = lambda/digraph->pGCD;
 	digraph->linear_factor = lambda;
 	return lambda;
+}
+
+/*
+ * \brief An implementation of the iterative algorithm for calculating utilization
+ * in Stigge et al. The digraph real-time task model. RTAS2011.
+ * In case of the large number of nodes in the unit digraph.
+ */
+double GraphAlgorithms::calculate_maximum_cycle_mean2(Digraph* digraph) {
+	vector<vector<UtilizationTriple*>> UT;
+	// initial UT0
+	vector<UtilizationTriple*> UT0;
+	for ( int i=0; i<digraph->node_vec.size(); i++) {
+		Node* node = digraph->node_vec.at(i);
+		UtilizationTriple* ut = new UtilizationTriple(0,0,node,node);
+		UT0.push_back(ut);
+	}
+	UT.push_back(UT0);
+
+	for (int i=0; i<digraph->node_vec.size(); i++) {
+		vector<UtilizationTriple*> UTk;
+		vector<UtilizationTriple*> PrevUT = UT.back();
+
+		for (vector<UtilizationTriple*>::iterator iter = PrevUT.begin(); iter != PrevUT.end(); iter++) {
+			UtilizationTriple* ut = *iter;
+			Node* start = ut->start;
+			Node* end = ut->end;
+			for (list<Edge*>::iterator eIter = end->out.begin(); eIter != end->out.end(); eIter++) {
+				Edge* edge = *eIter;
+				Node* snk = edge->snk_node;
+
+				int e = ut->e + end->wcet;
+				int p = ut->p + edge->separationTime;
+
+				bool dominated = false;
+				for (vector<UtilizationTriple*>::iterator it = UTk.begin(); it != UTk.end(); it++) {
+					UtilizationTriple* ut2 = *it;
+					if (ut2->e >= e && ut2->p <= p && start == ut2->start  && snk == ut2->end) {
+						dominated = true;
+						break;
+					}
+					if (ut2->e <= e && ut2->p >= p && start == ut2->start  && snk == ut2->end) {
+						ut2->e = e;
+						ut2->p = p;
+						dominated = true;
+						break;
+					}
+				}
+
+				if (!dominated) {
+					UtilizationTriple* nut = new UtilizationTriple(e,p,start,snk);
+					UTk.push_back(nut);
+				}
+			}
+		}
+		if (!UTk.empty())
+			UT.push_back(UTk);
+	}
+
+	double max = 0;
+	for (vector<vector<UtilizationTriple*>>::iterator iter = UT.begin(); iter != UT.end(); iter++) {
+		vector<UtilizationTriple*> UTk = *iter;
+		for (vector<UtilizationTriple*>::iterator it = UTk.begin(); it != UTk.end(); it++) {
+			UtilizationTriple* ut = *it;
+			if (ut->start == ut->end)
+				max = std::max(max,1.0*ut->e/ut->p);
+		}
+	}
+
+	return max;
 }
 
 /// /brief an implementation of the Karp's algorithm
@@ -452,7 +521,7 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 	list<Edge*>::iterator e_iter;
 	for (n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
 		int index = digraph->node_to_index[*n_iter];
-		B[index*2][index*2] = - digraph->linear_factor*digraph->gcd;
+		B[index*2][index*2] = - digraph->linear_factor*digraph->pGCD;
 	}
 
 	for (n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
@@ -462,9 +531,9 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 			Edge* edge = *e_iter;
 			int snkIndx = digraph->node_to_index[edge->snk_node];
 			//cout<<B[srcIndx*2][srcIndx*2+1]<<"\t"<<(double)node->wcet-digraph->linear_factor*digraph->gcd<<endl;
-			B[srcIndx*2][srcIndx*2+1] = max(B[srcIndx*2][srcIndx*2+1] , (double)node->wcet-digraph->linear_factor*digraph->gcd);
+			B[srcIndx*2][srcIndx*2+1] = max(B[srcIndx*2][srcIndx*2+1] , (double)node->wcet-digraph->linear_factor*digraph->pGCD);
 			//cout<<B[srcIndx*2][srcIndx*2+1]<<"\t"<<(double)node->wcet-digraph->linear_factor<<endl;
-			B[srcIndx*2+1][snkIndx*2] = max(B[srcIndx*2+1][snkIndx*2], (1.0-(double)edge->separationTime/digraph->gcd)*digraph->linear_factor*digraph->gcd);
+			B[srcIndx*2+1][snkIndx*2] = max(B[srcIndx*2+1][snkIndx*2], (1.0-(double)edge->separationTime/digraph->pGCD)*digraph->linear_factor*digraph->pGCD);
 		}
 	}
 
@@ -506,10 +575,10 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 		b = max(b, -digraph->linear_factor*node->deadline);
 	}
 
-	X = W+digraph->linear_factor*digraph->gcd + min(a,b);
+	X = W+digraph->linear_factor*digraph->pGCD + min(a,b);
 
-	digraph->c_rbf = W + digraph->linear_factor*digraph->gcd;
-	digraph->c_ibf = R + digraph->linear_factor*digraph->gcd;
+	digraph->c_rbf = W + digraph->linear_factor*digraph->pGCD;
+	digraph->c_ibf = R + digraph->linear_factor*digraph->pGCD;
 	digraph->c_dbf = X;
 
 	// release
@@ -523,14 +592,16 @@ void GraphAlgorithms::calculate_tight_linear_bounds(Digraph* digraph) {
 Digraph* GraphAlgorithms::generate_simple_digraph(Stateflow* sf) {
 	Digraph* digraph = new Digraph(sf->scale);
 	map<Transition*, Node*> tm;
+	map<Node*,Transition*> n2t;
 
 	// Generate nodes
 	for (vector<Transition*>::iterator iter = sf->trans.begin(); iter != sf->trans.end(); iter++) {
 		Transition* tran = *iter;
 		int index = sf->tran_index[tran];
-		Node* node = new Node("simple_v"+Utility::int_to_string(index),sf->scale,tran->wcet,tran->period);
+		Node* node = new Node("simple_v"+Utility::int_to_string(index),sf->scale,tran->wcet,sf->gcd);
 		digraph->add_node(node);
 		tm[tran] = node;
+		n2t[node] = tran;
 	}
 
 	// Generate edges
@@ -543,11 +614,43 @@ Digraph* GraphAlgorithms::generate_simple_digraph(Stateflow* sf) {
 			Edge* edge = new Edge(src, snk);
 			edge->separationTime = Utility::math_gcd(tran->period, t->period);
 			src->out.push_back(edge);
-			snk->in.push_back(edge);
+		    snk->in.push_back(edge);
 			digraph->add_edge(edge);
 		}
 	}
 
+	// add some null vertices for the vertices without out-edge
+	bool containEmpty = false;
+	Node* null_node = new Node("null_simple_v",sf->scale,0,0);
+	for (vector<Node*>::iterator n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
+		Node* node = *n_iter;
+		if (!node->out.empty()) continue;
+		containEmpty = true;		
+		Edge* edge = new Edge(node, null_node);
+		edge->separationTime = n2t[node]->period;
+		node->out.push_back(edge);
+		null_node->in.push_back(edge);
+		digraph->add_edge(edge);
+	}
+
+	if (containEmpty) digraph->add_node(null_node);
+
+	
+	// set up the deadlines for all the vertices
+	for (vector<Node*>::iterator n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
+		Node* node = *n_iter;
+		//int deadline = sf->hyperperiod; 
+		if (node->out.empty()) continue;
+		int deadline = INT_MAX;
+		for (list<Edge*>::iterator e_iter = node->out.begin(); e_iter != node->out.end(); e_iter++) {
+			Edge* edge = *e_iter;
+			deadline = min(deadline,edge->separationTime);
+		}
+		node->set_deadline(deadline);
+	}
+	
+	tm.clear();
+	n2t.clear();
 	return digraph;
 }
 
@@ -615,15 +718,61 @@ Digraph* GraphAlgorithms::generate_precise_digraph(Stateflow* sf) {
 	for (int i=0; i<n; i++) {
 		for (int j=0; j<m; j++) {
 			if (nodes[i][j] == NULL) continue;
+			/*
 			if (nodes[i][j]->in.empty() && nodes[i][j]->out.empty()) { 
 				delete nodes[i][j]; 
 				nodes[i][j] = NULL;
 				continue;
 			}
+			*/
 			nodes[i][j]->index = index++;
 			digraph->add_node(nodes[i][j]);
 		}
 	}
+
+	// add the null vertex for the vertices without out-edge
+	bool containEmpty = false;
+	Node* null_node = new Node("null_precise_v",sf->scale,0,0);
+	for (vector<Node*>::iterator n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
+		Node* node = *n_iter;
+		if (!node->out.empty()) continue;
+		containEmpty = true;
+		Edge* edge = new Edge(node,null_node);
+		int separationTime = 0;
+		for (int i=0; i<n; i++) for (int j=0; j<m; j++) {
+			if (nodes[i][j] == node) {
+				separationTime = sf->trans.at(i)->period;
+				break;
+			}
+		}
+		edge->separationTime = separationTime;
+		node->out.push_back(edge);
+		null_node->in.push_back(edge);
+		digraph->add_edge(edge);
+	}
+	if (containEmpty) digraph->add_node(null_node);
+
+	// set up the deadlines for all the vertices
+	for (vector<Node*>::iterator n_iter = digraph->node_vec.begin(); n_iter != digraph->node_vec.end(); n_iter++) {
+		Node* node = *n_iter;
+		if (node->out.empty()) continue;
+		int deadline = INT_MAX;
+		for (list<Edge*>::iterator e_iter = node->out.begin(); e_iter != node->out.end(); e_iter++) {
+			Edge* edge = *e_iter;
+			deadline = min(deadline,edge->separationTime);
+		}
+		/*
+		if (node->out.empty()) {
+			for (int i=0; i<n; i++) for (int j=0; j<m; j++)
+				if (nodes[i][j] == node) {
+					deadline = sf->trans.at(i)->period;
+					break;
+				}
+		}
+		*/
+		node->set_deadline(deadline);
+	}
+
 	for (int i=0; i<n; i++) delete[] nodes[i];
 	delete[] nodes;
 

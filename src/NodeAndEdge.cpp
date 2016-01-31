@@ -61,7 +61,10 @@ Node::~Node() {
 	scc_in.clear();
 	scc_out.clear();
 
-	if (unitNodes != NULL) delete[] unitNodes;
+	if (unitNodes != NULL) {
+		delete[] unitNodes;
+	}
+
 	if (granNodes != NULL) delete[] granNodes;
 }
 

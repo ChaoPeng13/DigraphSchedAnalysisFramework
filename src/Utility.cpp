@@ -1,6 +1,8 @@
 #include "Utility.h"
 
-	// return the greatest common divisor for two integers
+double Utility::EPSILON = 0.000001;
+
+// return the greatest common divisor for two integers
 int Utility::math_gcd(int a, int b) {
 		if (b==0) return a;
 		return math_gcd(b, a%b);
@@ -45,4 +47,16 @@ double* Utility::uniformly_distributed(int n, double tUtil) {
 
 	ret[n-1] = sum;
 	return ret;
+}
+
+bool Utility::compare_two_matrices(double** A, double** B, int n) {
+	for (int i=0; i<n; i++) for (int j=0; j<n; j++)
+		if (abs(A[i][j]-B[i][j])>EPSILON) {
+			if (false) {
+				std::cout<<i<<","<<j<<std::endl;
+				std::cout<<A[i][j]<<"..."<<B[i][j]<<std::endl;
+			}
+			return false;
+		}
+	return true;
 }

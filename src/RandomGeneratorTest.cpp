@@ -1,8 +1,11 @@
-#if 0
+#include "Definitions.h"
+
+#ifdef GOOGLETEST
 
 #include <gtest/gtest.h>
 
 #include "RandomGenerator.h"
+#include "FileWriter.h"
 
 extern bool output;
 
@@ -13,14 +16,14 @@ TEST(RandomGeneratorTest, RandomDigraph)
 	//digraph->write_graphviz(cout);
 	for (int run=0; run<1; run++) {
 
-	Digraph** digraphs = RandomGenerator::generate_digraph_system(10,15,1.0);
+		Digraph** digraphs = RandomGenerator::generate_digraph_system(10,15,1.0);
 
-	for (int i=0; i<10; i++) {
-		Digraph* digraph = digraphs[i];
+		for (int i=0; i<10; i++) {
+			Digraph* digraph = digraphs[i];
 
-		//digraph->write_graphviz(cout);
-		cout<<"Digraph-"<<i<<": utilization=" << digraph->linear_factor <<endl;
-	}
+			//digraph->write_graphviz(cout);
+			if (output) cout<<"Digraph-"<<i<<": utilization=" << digraph->linear_factor <<endl;
+		}
 	}
 }
 
@@ -57,7 +60,7 @@ TEST(RandomGeneratorTest, RandomStateflow)
 
 			sf->tf0 = 100;
 			sf->calculate_generialized_defect();
-			cout<<"Index "<<i<<": "<<"Irreducible="<<sf->isIrred<<"\tlfac="<<sf->lfac<<"\tgper="<<sf->gper<<"\tgdef="<<sf->gdef<<endl;
+			// cout<<"Index "<<i<<": "<<"Irreducible="<<sf->isIrred<<"\tlfac="<<sf->lfac<<"\tgper="<<sf->gper<<"\tgdef="<<sf->gdef<<endl;
 			if (sf->gdef==-1) 
 				Utility::output_matrix(sf->exec_req_matrix,sf->n_state,sf->n_state);
 
@@ -94,7 +97,28 @@ TEST(RandomGeneratorTest, RandomStateflow)
 
 		//sf->write_graphviz(cout);
 	}
-	cout<<"Irreducible number = "<<count<<endl;
+	//cout<<"Irreducible number = "<<count<<endl;
 }
+/*
+TEST(RandomGeneratorTest, RandomStateflowTest)
+{
+	for (int run = 0; run<10; run++) {
+		int numState = rand()%(10-1)+2;
+		int numTran = RandomGenerator::calculate_num_edge(numState);
+		Stateflow* sf = RandomGenerator::generate_one_stateflow_with_util(0,10,0.1,numState,numTran);
+		sf->calculate_csum();
+		sf->tf0 = 1000;
+		sf->calculate_generialized_period();
+		sf->calculate_generialized_defect();
+		sf->calculate_exec_req_matrix_power(10);
 
+		string name = "Stateflows\\RandomStateflowTest"+Utility::int_to_string(run)+".dot";
+		const char *p = name.c_str();
+
+		FileWriter::DotFileWriter(sf, p);
+
+		FileWriter::DotFileWriter(sf,sf->hyperperiod,"RandomStateflow"+Utility::int_to_string(run));
+	}
+}
+*/
 #endif

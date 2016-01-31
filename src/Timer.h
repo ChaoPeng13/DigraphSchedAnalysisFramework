@@ -23,6 +23,7 @@ public:
 
 	void start();
 	void end();
+	// return time in second
 	double getTime() const;
 
 private:

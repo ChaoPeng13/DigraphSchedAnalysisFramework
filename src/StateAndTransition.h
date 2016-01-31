@@ -58,16 +58,29 @@ public:
 	int priority;
 	int wcet;
 	int scale_wcet; // might be used to do breakdown factors or action extensibility
+	int deadline;
+	string name;
 
 	bool visited;
+
+	// Response times
+	map<int,double> responseTimeByRbfWithStaticOffsets;
+	map<int,double> responseTimeByIbfWithStaticOffsets;
+
+	double responseTimeByRbfWithArbitraryOffsets;
+	double responseTimeByIbfWithArbitraryOffsets;
 
 	///=============================================================================================================================
 	/// method functions
 	///=============================================================================================================================
 	Transition(State* _src, State* _snk) : src(_src), snk(_snk) {}
+	Transition(State* _src, State* _snk, string _name) : src(_src), snk(_snk), name(_name) {}
 
 	string toString() {
-		return src->toString()+"->"+snk->toString();
+		if (name.empty())
+			return src->toString()+"->"+snk->toString();
+		else 
+			return src->toString()+"->"+snk->toString()+"\t"+name;
 	}
 
 	// Sorted by the priority

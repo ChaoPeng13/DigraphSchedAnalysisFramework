@@ -1,67 +1,16 @@
-#if 0
+#include "Definitions.h"
+
+#ifdef GOOGLETEST
 #include <gtest/gtest.h>
 
 #include "Stateflow.h"
+#include "StateflowExample.h"
+#include "DigraphExample.h"
+#include "MaxPlusAlgebra.h"
 
 Stateflow* sf;
 
 bool output = false;
-extern double EPSILON;
-
-bool compare_two_matrices(double** A, double** B, int n) {
-	for (int i=0; i<n; i++) for (int j=0; j<n; j++)
-		if (abs(A[i][j]-B[i][j])>EPSILON) {
-			if (output) {
-				cout<<i<<","<<j<<endl;
-				cout<<A[i][j]<<"..."<<B[i][j]<<endl;
-			}
-			return false;
-		}
-	return true;
-}
-
-/**
- * An example for Figure 1 in 
- * Zeng and Di Natale, Schedulability analysis of periodic tasks implementing synchronous finite state machines.
- * ECRTS2012.
- */
-void generateStateflow0() {
-	sf = new Stateflow(100);
-
-	State* s1 = new State("s1",1);
-	State* s2 = new State("s2",2);
-	State* s3 = new State("s3",3);
-
-	sf->add_state(s1);
-	sf->add_state(s2);
-	sf->add_state(s3);
-
-	Transition* t12 = new Transition(s1,s2);
-	t12->wcet = 25;
-	t12->period = 200;
-	t12->priority = 1;
-	sf->add_transition(t12);
-
-	Transition* t23_0 = new Transition(s2,s3);
-	t23_0->wcet = 10;
-	t23_0->period = 200;
-	t23_0->priority = 1;
-	sf->add_transition(t23_0);
-
-	Transition* t23_1 = new Transition(s2,s3);
-	t23_1->wcet = 15;
-	t23_1->period = 500;
-	t23_1->priority = 2;
-	sf->add_transition(t23_1);
-
-	Transition* t31 = new Transition(s3,s1);
-	t31->wcet = 30;
-	t31->period = 500;
-	t31->priority = 2;
-	sf->add_transition(t31);
-
-	if (output) sf->write_graphviz(cout);
-}
 
 TEST(StateflowTest, Stateflow0)
 {
@@ -219,7 +168,7 @@ TEST(StateflowTest, Stateflow0)
 	exec_matrix[2][2] = 130;
 
 
-	generateStateflow0();
+	Stateflow* sf = StateflowExample::generateStateflow0();
 
 	sf->calculate_gcd();
 	EXPECT_EQ(sf->gcd,100);
@@ -246,7 +195,7 @@ TEST(StateflowTest, Stateflow0)
 
 	sf->generate_rbfs();
 	for (int i=0; i<sf->n_state; i++) for (int j=0; j<sf->n_state; j++) {
-		EXPECT_EQ(compare_two_matrices(sf->rbfs[i][j], rbfijsf[i][j], 7), true);
+		EXPECT_EQ(Utility::compare_two_matrices(sf->rbfs[i][j], rbfijsf[i][j], 7), true);
 	}
 
 	if (output) {
@@ -257,7 +206,7 @@ TEST(StateflowTest, Stateflow0)
 	}
 
 	sf->generate_exec_req_matrix();
-	EXPECT_EQ(compare_two_matrices(sf->exec_req_matrix,exec_matrix, 3), true);
+	EXPECT_EQ(Utility::compare_two_matrices(sf->exec_req_matrix,exec_matrix, 3), true);
 	
 	if (output) Utility::output_matrix(sf->exec_req_matrix,sf->n_state,sf->n_state);
 
@@ -276,6 +225,10 @@ TEST(StateflowTest, Stateflow0)
 	}
 
 	sf->calculate_linear_factor();
+	sf->calculate_linear_upper_bounds(true);
+
+	cout << "Linear factor = " << sf->lfac <<endl;
+	cout << "cibf = " << sf->cibf << "\t crbf = " << sf->crbf <<endl;
 
 	EXPECT_EQ(sf->lfac, sf->precise_digraph->linear_factor);
 
@@ -289,7 +242,7 @@ TEST(StateflowTest, Stateflow0)
 
 	sf->calculate_generialized_defect();
 	EXPECT_EQ(sf->gdef,1);
-
+	
 	sf->calculate_exec_req_matrix_power(10);
 
 	if (output) {
@@ -322,6 +275,12 @@ TEST(StateflowTest, Stateflow0)
 		}
 	}
 
+	if (true) {
+		for (int t=0; t<2000; t+=100) {
+			cout << "rbf[0,"<<t<<")=" << sf->get_rbf(0,t) <<endl;
+		}
+	}
+
 	// test rbf(t)
 	sf->simple_digraph->tf = 2000;
 
@@ -331,7 +290,7 @@ TEST(StateflowTest, Stateflow0)
 			cout<<"rbf("<<i<<")="<<sf->simple_digraph->rbf(i)<<endl;
 	}
 
-	sf->precise_digraph->tf = 1000;
+	sf->precise_digraph->tf = 10000;
 
 	sf->precise_digraph->prepare_rbf_calculation(false);
 
@@ -348,8 +307,32 @@ TEST(StateflowTest, Stateflow0)
 		cout<<"Stateflow:rbf("<<900<<")="<<sf->get_rbf(900)<<endl;
 	}
 
-	for (int t=0; t<10000; t+=100)
+	// output all the rbfs for the example in Figure 1
+	if (true) {
+		int s = 0;
+		cout << "rbf[s,f)"<<endl;
+		for (int f = 0; f<1200; f+=100)
+			cout<<"rbf["<<+s<<","<<f<<")="<<sf->get_rbf(s,f)<<endl;
+
+		cout << "Simple Digraph rbf(t)"<<endl;
+		for (int t = 0; t<1200; t+=100) {
+			//cout<<"Stateflow:rbf("<<t<<")="<<sf->get_rbf(t)<<endl;
+			cout<<"Digraph:rbf("<<t<<")="<<sf->simple_digraph->rbf(t)<<endl;
+		}
+
+		cout << "Precise Digraph rbf(t)" <<endl;
+		for (int t = 0; t<1200; t+=100) {
+			cout<<"Stateflow:rbf("<<t<<")="<<sf->get_rbf(t)<<endl;
+			cout<<"Digraph:rbf("<<t<<")="<<sf->precise_digraph->rbf(t)<<endl;
+		}
+
+		cout<<"Stateflow:rbf("<<900<<")="<<sf->get_rbf(900)<<endl;
+	}
+
+	for (int t=0; t<10000; t+=100) {
+		//cout<<t<<endl;
 		EXPECT_EQ(sf->get_rbf(t),sf->precise_digraph->rbf(t));
+	}
 
 	// test dbf[s,f)
 	if (output) {
@@ -383,6 +366,18 @@ TEST(StateflowTest, Stateflow0)
 		}
 	}
 
+	if (true) {
+		for (int t=0; t<=1000; t+=5) {
+			cout << "ibf[0," << t << ")=" << sf->get_ibf(0,t) <<endl;
+		}
+	}
+
+	if (false) {
+		for (int t=0; t<=1000; t+=5) {
+			cout << "ibf(" << t << ")=" << sf->get_ibf(t) <<endl;
+		}
+	}
+
 	for (int i=0; i<1000; i+=10) for (int j=0; j<1000; j+=10) 
 		EXPECT_LE(sf->get_ibf(i,j),sf->get_rbf(i,j));
 
@@ -399,6 +394,309 @@ TEST(StateflowTest, Stateflow0)
 		}
 	}
 
+	int nSize;
+	cout << "lfac = " << sf->simple_digraph->linear_factor << endl; 
+	cout << "lper = " << sf->simple_digraph->unit_digraph->lper << "\tldef = " << sf->simple_digraph->unit_digraph->ldef <<endl;
+
+	/*
+	double*** A = new double**[31];
+	
+	for (int t=1; t<=30; t++) {
+		A[t] = sf->simple_digraph->rbf_exec_req_matrix(t,nSize);
+	}
+
+	for (int t=1; t<=26; t++) {
+		bool equal = true;
+		cout << "===========" << t << "===========" <<endl;
+		Utility::output_matrix(A[t],nSize,nSize);
+		cout << "+++++++++++" << t+4 << "+++++++++++" <<endl;
+		Utility::output_matrix(A[t+4],nSize,nSize);
+		for ( int i=0; i<nSize; i++) {
+			for ( int j=0; j<nSize; j++) {
+				if (abs(A[t][i][j] +65 - A[t+4][i][j])>0.000001) {
+					equal = false;
+					break;
+				}
+			}
+			if (!equal) break;
+		}
+		cout << "t=" << t << "=>" << equal <<endl;
+	}
+
+	delete[] A;
+	*/
+	cout << "nSize of precise digraph's UDRT = " << sf->precise_digraph->unit_digraph->n_size <<endl;
+	cout << "lfac = " << sf->precise_digraph->linear_factor << endl; 
+	cout << "lper = " << sf->precise_digraph->unit_digraph->lper << "\tldef = " << sf->precise_digraph->unit_digraph->ldef <<endl;
+	
+	
+	//map<int,double**> matrices;
+	//matrices[1] = sf->precise_digraph->rbf_exec_req_matrix(1,nSize);
+	int period = 1000;
+	for (int t=1; t<=100; t++) {
+		bool equal = true;
+		int x = t*100;
+		/*
+		cout << "===========" << t << "===========" <<endl;
+		Utility::output_matrix(B[t],nSize,nSize);
+		cout << "+++++++++++" << t+10 << "+++++++++++" <<endl;
+		Utility::output_matrix(B[t+10],nSize,nSize);
+		*/
+		//double** B1 = MaxPlusAlgebra::multiply_maxplus_matrix(matrices,t,nSize);
+		//double** B2 = MaxPlusAlgebra::multiply_maxplus_matrix(matrices,t+10,nSize);
+
+		double B1 = sf->precise_digraph->rbf(x);
+		double B2 = sf->precise_digraph->rbf(x+period);
+		cout << B1 <<"\t" << B2 <<endl;
+
+		/*
+		if (t==1000) {
+			cout << "===========" << t << "===========" <<endl;
+			Utility::output_matrix(B1,nSize,nSize);
+			cout << "+++++++++++" << t+10 << "+++++++++++" <<endl;
+			Utility::output_matrix(B2,nSize,nSize);
+		}
+		*/
+
+		/*
+		for ( int i=0; i<nSize; i++) {
+			for ( int j=0; j<nSize; j++) {
+				if (abs(B1[i][j] +130 - B2[i][j])>0.000001) {
+					equal = false;
+					break;
+				}
+			}
+			if (!equal) break;
+		}
+		*/
+
+		if (abs(B1+0.13*period - B2) > 0.000001) equal = false;
+		cout << "t=" << t << "=>" << equal <<endl;
+	}
+}
+
+TEST(StateflowTest, Stateflow3)
+{
+	Stateflow* sf = StateflowExample::generateStateflow3();
+	sf->calculate_gcd();
+	sf->calculate_t_gcd();
+	sf->calculate_hyperperiod();
+	sf->set_state_number();
+	sf->generate_rbf_time_instances();
+	sf->generate_rbfs();
+	sf->tf0 = 100;
+
+	sf->generate_exec_req_matrix();
+	if (true) {
+		cout << "Execution Request Matrix for the FSM:" <<endl;
+		Utility::output_matrix(sf->exec_req_matrix,sf->n_state,sf->n_state);
+	}
+
+	sf->generate_simple_digraph();
+	sf->generate_precise_digraph();
+
+	sf->calculate_linear_factor();
+	sf->calculate_linear_upper_bounds(true);
+
+	cout << "Linear factor = " << sf->lfac <<endl;
+	cout << "cibf = " << sf->cibf << "\t crbf = " << sf->crbf <<endl;
+
+	sf->check_irreducible();
+	sf->calculate_generialized_period();
+	sf->calculate_generialized_defect();
+
+	if (true) {
+		cout << "gper = " << sf->gper << "\t gdef = " << sf->gdef <<endl;
+	}
+
+	sf->calculate_exec_req_matrix_power(10);
+
+	if (true) {
+		for (int t=0; t<=1000; t+=100) {
+			cout << "rbf[0,"<<t<<")=" << sf->get_rbf(0,t) <<endl;
+		}
+	}
+
+	sf->simple_digraph->tf = 2000;
+	sf->simple_digraph->prepare_rbf_calculation(false);
+
+	sf->precise_digraph->tf = 10000;
+	sf->precise_digraph->prepare_rbf_calculation(false);
+
+	// output execution request matrix of the inaccurate digraph model
+	if (true) {
+		cout << "Execution request matrix of the inaccurate digraph model:" << endl;
+		Utility::output_matrix(sf->simple_digraph->unit_digraph->matrix,sf->simple_digraph->unit_digraph->n_size,sf->simple_digraph->unit_digraph->n_size);
+	}
+
+	// output all the rbfs for the example in Figure 1
+	if (true) {
+		int s = 0;
+		cout << "rbf[s,f)"<<endl;
+		for (int f = 0; f<1200; f+=100)
+			cout<<"rbf["<<+s<<","<<f<<")="<<sf->get_rbf(s,f)<<endl;
+
+		cout << "Simple Digraph rbf(t)"<<endl;
+		for (int t = 0; t<1200; t+=100) {
+			//cout<<"Stateflow:rbf("<<t<<")="<<sf->get_rbf(t)<<endl;
+			cout<<"Digraph:rbf("<<t<<")="<<sf->simple_digraph->rbf(t)<<endl;
+		}
+
+		cout << "Precise Digraph rbf(t)" <<endl;
+		for (int t = 0; t<1200; t+=100) {
+			cout<<"Stateflow:rbf("<<t<<")="<<sf->get_rbf(t)<<endl;
+			cout<<"Digraph:rbf("<<t<<")="<<sf->precise_digraph->rbf(t)<<endl;
+		}
+
+		for (int t = 0; t<=500; t+=5) {
+			cout<<"Stateflow:ibf("<<t<<")="<<sf->get_ibf(t)<<endl;
+			//cout<<"Digraph:ibf("<<t<<")="<<sf->precise_digraph->ibf(t)<<endl;
+		}
+
+		cout<<"Stateflow:rbf("<<900<<")="<<sf->get_rbf(900)<<endl;
+	}
+
+	if (true) {
+		for (int t=200; t<=700; t+=5) {
+			cout << "ibf[200," << t << ")=" << sf->get_ibf(200,t) <<endl;
+			cout << "rbf[200," << t << ")=" << sf->get_rbf(200,t) <<endl;
+		}
+	}
+
+	if (true) {
+		for (int t=0; t<=500; t+=5) {
+			cout << "ibf[0," << t << ")=" << sf->get_ibf(0,t) <<endl;
+			cout << "rbf[0," << t << ")=" << sf->get_rbf(0,t) <<endl;
+		}
+	}
+
+	int nSize;
+	cout << "lfac = " << sf->simple_digraph->linear_factor << endl; 
+	cout << "lper = " << sf->simple_digraph->unit_digraph->lper << "\tldef = " << sf->simple_digraph->unit_digraph->ldef <<endl;
+
+	/*
+	double*** A = new double**[31];
+	
+	for (int t=1; t<=30; t++) {
+		A[t] = sf->simple_digraph->rbf_exec_req_matrix(t,nSize);
+	}
+
+	for (int t=1; t<=26; t++) {
+		bool equal = true;
+		cout << "===========" << t << "===========" <<endl;
+		Utility::output_matrix(A[t],nSize,nSize);
+		cout << "+++++++++++" << t+4 << "+++++++++++" <<endl;
+		Utility::output_matrix(A[t+4],nSize,nSize);
+		for ( int i=0; i<nSize; i++) {
+			for ( int j=0; j<nSize; j++) {
+				if (abs(A[t][i][j] +65 - A[t+4][i][j])>0.000001) {
+					equal = false;
+					break;
+				}
+			}
+			if (!equal) break;
+		}
+		cout << "t=" << t << "=>" << equal <<endl;
+	}
+
+	delete[] A;
+	*/
+	cout << "nSize of precise digraph's UDRT = " << sf->precise_digraph->unit_digraph->n_size <<endl;
+	cout << "lfac = " << sf->precise_digraph->linear_factor << endl; 
+	cout << "lper = " << sf->precise_digraph->unit_digraph->lper << "\tldef = " << sf->precise_digraph->unit_digraph->ldef <<endl;
+	
+	
+	//map<int,double**> matrices;
+	//matrices[1] = sf->precise_digraph->rbf_exec_req_matrix(1,nSize);
+	int period = 1000;
+	for (int t=1; t<=100; t++) {
+		bool equal = true;
+		int x = t*100;
+		/*
+		cout << "===========" << t << "===========" <<endl;
+		Utility::output_matrix(B[t],nSize,nSize);
+		cout << "+++++++++++" << t+10 << "+++++++++++" <<endl;
+		Utility::output_matrix(B[t+10],nSize,nSize);
+		*/
+		//double** B1 = MaxPlusAlgebra::multiply_maxplus_matrix(matrices,t,nSize);
+		//double** B2 = MaxPlusAlgebra::multiply_maxplus_matrix(matrices,t+10,nSize);
+
+		double B1 = sf->precise_digraph->rbf(x);
+		double B2 = sf->precise_digraph->rbf(x+period);
+		cout << B1 <<"\t" << B2 <<endl;
+
+		/*
+		if (t==1000) {
+			cout << "===========" << t << "===========" <<endl;
+			Utility::output_matrix(B1,nSize,nSize);
+			cout << "+++++++++++" << t+10 << "+++++++++++" <<endl;
+			Utility::output_matrix(B2,nSize,nSize);
+		}
+		*/
+
+		/*
+		for ( int i=0; i<nSize; i++) {
+			for ( int j=0; j<nSize; j++) {
+				if (abs(B1[i][j] +130 - B2[i][j])>0.000001) {
+					equal = false;
+					break;
+				}
+			}
+			if (!equal) break;
+		}
+		*/
+
+		if (abs(B1+0.13*period - B2) > 0.000001) equal = false;
+		cout << "t=" << t << "=>" << equal <<endl;
+		if (equal) break;
+		
+	}
+}
+
+/**
+ *  The linear periodicity of the simplified (strongly connected) digraph with some loose edges
+ */
+TEST(StateflowTest, Stateflow4) {
+	Digraph* digraph = DigraphExample::generateDigraph6();
+
+	digraph->generate_strongly_connected_components();
+	EXPECT_EQ(digraph->sccs.size(),1);
+
+	cout << digraph->sccs.size() <<endl;
+	for(vector<Digraph*>::iterator iter = digraph->sccs.begin(); iter != digraph->sccs.end(); iter++) {
+		Digraph* subGraph = *iter;
+		cout << "============Sub Graph===========" << endl;
+		for (vector<Node*>::iterator nIter = subGraph->node_vec.begin(); nIter != subGraph->node_vec.end(); nIter++) {
+			cout << (*nIter)->name <<endl;
+		}
+	}
+
+	digraph->check_strongly_connected();
+	EXPECT_EQ(digraph->strongly_connected,true);
+
+	digraph->calculate_period_gcd();
+	EXPECT_EQ(digraph->pGCD,100);
+
+	digraph->calculate_linear_factor();
+	EXPECT_EQ(digraph->linear_factor,0.13);
+
+	digraph->tf = 10000;
+	digraph->prepare_rbf_calculation(false);
+
+	cout << "nSize=" << digraph->unit_digraph->n_size << endl;
+	if(output) {
+		Utility::output_matrix(digraph->unit_digraph->matrix,digraph->unit_digraph->n_size,digraph->unit_digraph->n_size);
+	}
+
+	cout << "lper=" << digraph->unit_digraph->lper << ",\tldef=" << digraph->unit_digraph->ldef <<endl;
+
+	if (true) {
+		for (int t=0; t<=1000; t+=100)
+			cout << "rbf(" << t << ")=" << digraph->rbf(t) << endl;
+	}
+
+
+	//digraph->write_graphviz(std::cout);
 }
 
 #endif

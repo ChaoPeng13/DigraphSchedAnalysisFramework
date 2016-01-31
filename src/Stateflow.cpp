@@ -3,6 +3,12 @@
 #include "MaxPlusAlgebra.h"
 #include "GraphAlgorithms.h"
 
+#include "Timer.h"
+
+double Stateflow::tDiff = 0;
+double Stateflow::tCalWithoutPeriodicity = 0;
+double Stateflow::tCalWithPeriodicity = 0;
+
 Stateflow::~Stateflow() {
 	//cout<<"Stateflow Destruction Start"<<endl;
 	state_index.clear();
@@ -28,16 +34,18 @@ Stateflow::~Stateflow() {
 	time_index.clear();
 
 	// delete rbfs
-	for (int i=0; i<n_state; i++) {
-		for (int j=0; j<n_state; j++) {
-			for (int s=0; s< n_time_instance; s++) {
-				delete[] rbfs[i][j][s];
+	if (rbfs != NULL) {
+		for (int i=0; i<n_state; i++) {
+			for (int j=0; j<n_state; j++) {
+				for (int s=0; s< n_time_instance; s++) {
+					delete[] rbfs[i][j][s];
+				}
+				delete[] rbfs[i][j];
 			}
-			delete[] rbfs[i][j];
+			delete[] rbfs[i];
 		}
-		delete[] rbfs[i];
+		delete[] rbfs;
 	}
-	delete[] rbfs;
 
 	//rbf_hyperperiod.clear();
 	//ibf_hyperperiod.clear();
@@ -69,6 +77,20 @@ Stateflow::~Stateflow() {
 		*iter = NULL;
 	}
 	ibf_vec.clear();
+
+	// release abstract request function trees
+	for (map<int, map<int,AbstractRequestFunctionTree>>::iterator mmIter = mmARFT.begin(); mmIter != mmARFT.end(); mmIter++) {
+		map<int,AbstractRequestFunctionTree> temp = mmIter->second;
+		for (map<int,AbstractRequestFunctionTree>::iterator mIter = temp.begin(); mIter != temp.end(); mIter++) {
+			AbstractRequestFunctionTree& arft = mIter->second;
+			arft.root = NULL;
+			while(!arft.cur_queue.empty()) arft.cur_queue.pop();
+			for (vector<RFNode*>::iterator iter = arft.record.begin(); iter != arft.record.end(); iter++) {
+				delete *iter;
+			}
+			arft.record.clear();
+		}
+	}
 
 	//cout<<"Staeflow End"<<endl;
 }
@@ -126,6 +148,17 @@ void Stateflow::calculate_hyperperiod() {
 		_lcm = Utility::math_lcm(_lcm, tran->period);
 	}
 	hyperperiod = _lcm;
+}
+
+void Stateflow::calculate_deadlines() {
+	for (vector<Transition*>::iterator iter = trans.begin(); iter != trans.end(); iter++) {
+		State* snk = (*iter)->snk;
+		int deadline = (*iter)->period;
+		for (list<Transition*>::iterator iter2 = snk->out.begin(); iter2 != snk->out.end(); iter2++) {
+			deadline = min(deadline,(*iter2)->period);
+		}
+		(*iter)->deadline = deadline;
+	}
 }
 
 void Stateflow::set_state_number() {
@@ -227,13 +260,34 @@ void Stateflow::generate_exec_req_matrix() {
 }
 
 void Stateflow::calculate_exec_req_matrix_power(int tf) {
+	Timer timer;
 	/// Calculate all the execution request matrix from 2 to tf
 	for (int t=2; t<tf; t++) {
 		if (exec_req_matrix_power.find(t) != exec_req_matrix_power.end())
 			continue;
 		double** temp;
-		if (t>gdef+gper && isIrred)
+		if (t>gdef+gper && isIrred && exec_req_matrix_power.find(t-gper) != exec_req_matrix_power.end()) {
+			//cout<<"a-ha!"<<endl;
+			timer.start();
 			temp = MaxPlusAlgebra::periodicly_calculate_maxplus_matrix_power(exec_req_matrix_power[t-gper],n_state,lfac*hyperperiod,gper);
+			timer.end();
+			double t0 = timer.getTime();
+
+			timer.start();
+			//double** temp1 = MaxPlusAlgebra::multiply_maxplus_matrix(exec_req_matrix_power[t-1],exec_req_matrix,n_state);
+			double** temp1 = MaxPlusAlgebra::power_maxplus_matrix(exec_req_matrix,n_state, t);
+			timer.end();
+			double t1 = timer.getTime();
+
+			for (int i=0; i<n_state; i++) delete[] temp1[i];
+			delete[] temp1;
+
+			cout<<t0<<"\t"<<t1<<"\t"<<t1-t0<<endl;
+
+			tDiff += t1-t0;
+			tCalWithoutPeriodicity += t1;
+			tCalWithPeriodicity += t0;
+		}
 		else
 			temp = MaxPlusAlgebra::multiply_maxplus_matrix(exec_req_matrix_power[t-1],exec_req_matrix,n_state);
 		exec_req_matrix_power[t] = temp;
@@ -286,10 +340,11 @@ void Stateflow::scale_wcet(double factor) {
 }
 
 void Stateflow::calculate_csum() {
-	double _csum = 0;
+	int _csum = 0;
 	for (vector<Transition*>::iterator iter = trans.begin(); iter != trans.end(); iter++) {
 		Transition* tran = *iter;
-		_csum += tran->wcet*hyperperiod/tran->period;
+		//int temp = tran->wcet*(hyperperiod/tran->period);
+		_csum += tran->wcet*(hyperperiod/tran->period);
 	}
 	csum = _csum;
 }
@@ -305,9 +360,10 @@ void Stateflow::calculate_tf0(Stateflow** stateflows, int i) {
 		if (k==i) sum -= sf->csum;
 	}
 
-	if (util >= 1) tf0 = POS_INFINITY;
-
-	tf0 = sum/(1-util);
+	if (util >= 1) 
+		tf0 = POS_INFINITY;
+	else 
+		tf0 = sum/(1-util);
 }
 
 /// Generate a simple digraph for stateflow
@@ -319,7 +375,7 @@ void Stateflow::generate_simple_digraph() {
 	simple_digraph->prepare_digraph();
 }
 
-/// Generate a precese digraph for stateflow
+/// Generate a precise digraph for stateflow
 void Stateflow::generate_precise_digraph() {
 	if (precise_digraph != NULL) return;
 	precise_digraph = GraphAlgorithms::generate_precise_digraph(this);
@@ -357,9 +413,10 @@ void Stateflow::calculate_tf1(Stateflow** stateflows, int i) {
 		sum += sf->crbf;
 	}
 
-	if (util >= 1) tf1 = POS_INFINITY;
-
-	tf1 = sum/(1-util);
+	if (util >= 1) 
+		tf1 = POS_INFINITY;
+	else
+		tf1 = sum/(1-util);
 }
 
 void Stateflow::calculate_tf2(Stateflow** stateflows, int i) {
@@ -372,9 +429,10 @@ void Stateflow::calculate_tf2(Stateflow** stateflows, int i) {
 		sum += sf->cibf;
 	}
 
-	if (util >= 1) tf2 = POS_INFINITY;
-
-	tf2 = sum/(1-util);
+	if (util >= 1) 
+		tf2 = POS_INFINITY;
+	else
+		tf2 = sum/(1-util);
 }
 
 /// Static offset
@@ -449,6 +507,9 @@ double Stateflow::calculate_rbf_within_multiple_hyperperiods(int start, int fini
 	
 
 	if (n>1) {
+		if (exec_req_matrix_power.find(n)==exec_req_matrix_power.end()) 
+			calculate_exec_req_matrix_power(n);
+		
 		for (int i=0; i<n_state; i++) for (int j=0; j<n_state;j++)
 			midd[i][j] = exec_req_matrix_power[n-1][i][j];
 	}
@@ -547,10 +608,10 @@ double Stateflow::calculate_ibf_within_one_hyperperiod(int i, int j, int start, 
 		int snk = state_index[tran->snk];
 		if (snk != j) continue;
 		if (fl%tran->period==0) {
-			double min = std::min(tran->wcet, finish-fl);
+			double dmin = min(tran->wcet, finish-fl);
 			double rbfij = rbfs[i][src][sIndx][fIndx0];
 			if (rbfij == NEG_INFINITY) continue;
-			ibfij = std::max(ibfij, rbfij+min);
+			ibfij = max(ibfij, rbfij+dmin);
 		}
 	}
 
@@ -579,6 +640,9 @@ double Stateflow::calculate_ibf_within_multiple_hyperperiods(int start, int fini
 	
 
 	if (n>1) {
+		if (exec_req_matrix_power.find(n)==exec_req_matrix_power.end()) 
+			calculate_exec_req_matrix_power(n);
+
 		for (int i=0; i<n_state; i++) for (int j=0; j<n_state;j++)
 			midd[i][j] = exec_req_matrix_power[n-1][i][j];
 	}

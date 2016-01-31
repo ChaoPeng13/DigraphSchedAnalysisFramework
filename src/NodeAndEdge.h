@@ -43,7 +43,9 @@ public:
 
 	// used to construct UDRT or GDRT
 	Node** unitNodes;
+	int unitNodeNum;
 	Node** granNodes;
+	int granNodeNum;
 
 	enum Color {WHITE, GRAY, BLACK};
 	

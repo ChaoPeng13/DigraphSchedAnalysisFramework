@@ -40,6 +40,7 @@ Digraph::~Digraph() {
 		}
 	}
 	node_vec.clear();
+	cnode_vec.clear();
 
 	// release edges
 	if (iEdge!=0) {
@@ -64,7 +65,8 @@ Digraph::~Digraph() {
 void Digraph::prepare_digraph() {
 	 generate_strongly_connected_components();
 	 check_strongly_connected();
-	 calculate_gcd();
+	 calculate_period_gcd();
+	 calculate_all_gcd();
 	 calculate_linear_factor();
 	 calculate_linear_upper_bounds();
 }
@@ -99,9 +101,16 @@ void Digraph::calculate_linear_factor() {
 	this->linear_factor = lambda;
 }
 
-void Digraph::calculate_linear_upper_bounds() {
+void Digraph::calculate_linear_factor2() {
+	this->linear_factor = GraphAlgorithms::calculate_maximum_cycle_mean2(this);
+}
+
+void Digraph::calculate_csum() {
 	// calculate C^sum
 	GraphAlgorithms::calculate_csum(this);
+}
+
+void Digraph::calculate_linear_upper_bounds() {
 	// calculate C^rbf, C^ibf and C^dbf
 	GraphAlgorithms::calculate_tight_linear_bounds(this);
 }
@@ -167,13 +176,24 @@ void Digraph::prepare_rbf_calculation(bool debug) {
 	unit_digraph->prepare(debug);
 }
 
+void Digraph::prepare_rbf_calculation_without_periodicity(bool debug) {
+	unit_digraph = new UnitDigraph(this);
+	unit_digraph->prepare_without_periodicity(debug);
+}
+
 void Digraph::prepare_ibf_calculation(bool debug) {
 	gran_digraph = new GranDigraph(this);
 	gran_digraph->prepare(debug);
 }
 
 double Digraph::rbf(int t) {
-	return unit_digraph->get_rbf(t);
+	if (t==0) return 0;
+	double rbf = unit_digraph->get_rbf(t);
+	double rbf_leaf = 0; // if some nodes have no out edge
+	for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++)
+		rbf_leaf = max(rbf_leaf, (double)(*iter)->wcet);
+
+	return max(rbf,rbf_leaf);
 }
 
 double** Digraph::rbf_exec_req_matrix(int t, int& n) {
@@ -191,21 +211,104 @@ double** Digraph::ibf_exec_req_matrix(int t, int& n) {
 }
 
 double Digraph::dbf(int t) {
-	double factor = (double) t/gcd;
+	int large_t = 100; // sufficiently large t
+	double factor = (double) t/pGCD;
 	t = floor(factor);
-	return unit_digraph->get_dbf(t);
+	//write_graphviz(cout);
+	if (dbf_map.find(t) != dbf_map.end())
+		return dbf_map[t];
+	if (t < large_t)
+		return calculate_dbf(t);
+	else 
+		return unit_digraph->get_dbf(t);
+}
+
+double Digraph::calculate_dbf(int t) {
+	vector<vector<DemandTriple*>> DT;
+	// initial DT0
+	vector<DemandTriple*> DT0;
+	for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++) {
+		Node* node = *iter;
+		if (node->deadline == INT_MAX) continue;
+		DemandTriple* dt = new DemandTriple(node->wcet, node->deadline, node);
+		DT0.push_back(dt);
+	}
+	DT.push_back(DT0);
+
+	for (int k=1; k<=t; k++) {
+		vector<DemandTriple*> DTk;
+		vector<DemandTriple*> PrevDT = DT.back();
+		for (vector<DemandTriple*>::iterator iter = PrevDT.begin(); iter != PrevDT.end(); iter++) {
+			DemandTriple* dt = *iter;
+			Node* src = dt->node;
+			for (list<Edge*>::iterator eIter = src->out.begin(); eIter != src->out.end(); eIter++) {
+				Edge* edge = *eIter;
+				Node* snk = edge->snk_node;
+				if (snk->deadline == INT_MAX) continue;
+				int e = dt->e + snk->wcet;
+				int d = dt->d - src->deadline + edge->separationTime + snk->deadline;
+
+				bool dominated = false;
+				for (vector<DemandTriple*>::iterator it = DTk.begin(); it != DTk.end(); it++) {
+					DemandTriple* dt2 = *it;
+					if (dt2->e >= e && dt2->d <= d && snk == dt2->node) {
+						dominated = true;
+						break;
+					}
+					if (dt2->e <= e && dt2->d >= d && snk == dt2->node) {
+						dt2->e = e;
+						dt2->d = d;
+						dominated = true;
+						break;
+					}
+				}
+
+				if (!dominated && d<=t*pGCD) {
+					DemandTriple* ndt = new DemandTriple(e,d,snk);
+					DTk.push_back(ndt);
+				}
+			}
+		}
+		if (!DTk.empty())
+			DT.push_back(DTk);
+	}
+
+	//DT.erase(DT.begin()); // remove thd DT0
+	int max = 0;
+	for (vector<vector<DemandTriple*>>::iterator iter = DT.begin(); iter != DT.end(); iter++) {
+		vector<DemandTriple*> DTk = *iter;
+		for (vector<DemandTriple*>::iterator it = DTk.begin(); it != DTk.end(); it++) {
+			DemandTriple* dt = *it;
+			if (dt->d <= t*pGCD)
+				max = std::max(max,dt->e);
+		}
+	}
+	dbf_map[t] = max;
+
+	// delete DemandTriple
+	for (vector<vector<DemandTriple*>>::iterator iter = DT.begin(); iter != DT.end(); iter++) {
+		vector<DemandTriple*> DTk = *iter;
+		for (vector<DemandTriple*>::iterator it = DTk.begin(); it != DTk.end(); it++) {
+			delete *it;
+			*it = NULL;
+		}
+		DTk.clear();
+	}
+	DT.clear();
+
+	return max;
 }
 
 void Digraph::write_graphviz(ostream& out) {
 	out << "digraph G {" <<endl;
 	for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++) {
 		Node* node = *iter;
-		out << node->name << " [label=\"" << node->name << "/" << node->wcet << "\"]" << endl;
+		out << node->name << " [label=\" " << node->name << " / " << node->wcet << " / " << node->deadline << " \"]" << endl;
 	}
 	for (vector<Edge*>::iterator iter = edge_vec.begin(); iter != edge_vec.end(); iter++) {
 		Edge* edge = *iter;
 		out << edge->src_node->name << " -> " << edge->snk_node->name 
-			<< " [label=\"" << edge->separationTime << "\"]" << endl;
+			<< " [label=\" " << edge->separationTime << " \"]" << endl;
 	}
 	out << "}" <<endl;
 }
@@ -257,8 +360,13 @@ UnitDigraph::~UnitDigraph() {
 	delete[] matrix;
 	*/
 
-	// release matrix power
-	// TODO:
+	// delete execution request matrix
+	for (map<int, double**>::iterator iter = matrix_map.begin(); iter != matrix_map.end(); iter++) {
+		double** temp = iter->second;
+		for (int i=0; i<n_size; i++)
+			delete[] temp[i];
+		delete[] temp;
+	}
 
 	matrix_map.clear();
 	maximum_element_map.clear();
@@ -269,8 +377,8 @@ UnitDigraph::~UnitDigraph() {
 /// \brief prepare function
 void UnitDigraph::prepare(bool debug) {
 	// calculate gcd
-	calculate_gcd();
-
+	//calculate_period_gcd();
+	//gcd = pGCD;
 	// generate UDRT
 	generate_unit_digraph();
 	n_size = node_vec.size();
@@ -288,6 +396,17 @@ void UnitDigraph::prepare(bool debug) {
 	calculate_exec_request_matrix_power(tf);
 }
 
+void UnitDigraph::prepare_without_periodicity(bool debug) {
+	generate_unit_digraph();
+	n_size = node_vec.size();
+
+	// generate execution request matrix
+	generate_exec_request_matrix();
+
+	// Calculate the execution request matrix power
+	calculate_exec_request_matrix_power_without_periodicity(tf);
+}
+
 void UnitDigraph::generate_unit_digraph() {
 	for (vector<Node*>::iterator iter = origin->node_vec.begin(); iter != origin->node_vec.end(); iter++) {
 		Node* node = *iter;
@@ -300,6 +419,7 @@ void UnitDigraph::generate_unit_digraph() {
 
 		int numNode = maxSeparationtime/this->gcd;
 		node->unitNodes = new Node*[numNode];
+		node->unitNodeNum = numNode;
 
 		// Create new nodes
 		for (int j=0; j<numNode; j++) {
@@ -358,6 +478,7 @@ void UnitDigraph::scc_generate_unit_digraph() {
 
 		int numNode = maxSeparationtime/this->gcd;
 		node->unitNodes = new Node*[numNode];
+		node->unitNodeNum = numNode;
 
 		// Create new nodes
 		for (int j=0; j<numNode; j++) {
@@ -402,6 +523,13 @@ void UnitDigraph::scc_generate_unit_digraph() {
 
 		this->add_edge(newEdge);
 	}
+
+	for (vector<Node*>::iterator iter = origin->node_vec.begin(); iter != origin->node_vec.end(); iter++) {
+		Node* node = *iter;
+
+		delete[] node->unitNodes;
+		node->unitNodes = NULL;
+	}
 }
 
 void UnitDigraph::generate_exec_request_matrix() {
@@ -420,11 +548,12 @@ void UnitDigraph::calculate_linear_period(bool debug) {
 
 void UnitDigraph::calculate_linear_defect() {
 	if (origin->strongly_connected)
-		ldef = MaxPlusAlgebra::calculate_linear_defect(matrix_map, maximum_element_map, n_size, lfac*gcd, lper*gcd, origin->tf);
+		ldef = MaxPlusAlgebra::calculate_linear_defect(matrix_map, maximum_element_map, n_size, lfac, lper, tf, gcd);
 }
 
 void UnitDigraph::calculate_exec_request_matrix_power(int tf) {
 	/// Calculate all the execution request matrix from 2 to tf
+	/*
 	for (int t=2; t<=tf; t++) {
 		if (matrix_map.find(t) != matrix_map.end())
 			continue;
@@ -438,12 +567,52 @@ void UnitDigraph::calculate_exec_request_matrix_power(int tf) {
 		int temp = static_cast<int> (maximum_element);
 		maximum_element_map[t] = temp;
 	}
+	*/
+
+	/// Calculate all the execution request matrix from 2 to tf
+	/// Use rbf(t+p)= rbf(t)+p*q to calculate rbf(t) instead of the matrix operaition
+	for (int t=2; t<=tf; t++) {
+		if (matrix_map.find(t) != matrix_map.end())
+			continue;
+
+		if (t>ldef+lper && origin->strongly_connected && maximum_element_map.find(t-lper)!=maximum_element_map.end()) {
+			double maximum_element = maximum_element_map[t-lper]+lfac*gcd*lper;
+			int temp = static_cast<int> (maximum_element);
+			maximum_element_map[t] = temp;
+			continue;
+		}
+
+		double** matrix_power;
+		matrix_power = MaxPlusAlgebra::multiply_maxplus_matrix(matrix_map[t-1],matrix_map[1],n_size);
+		matrix_map[t] = matrix_power;
+		double maximum_element = MaxPlusAlgebra::maximum_element(matrix_power, n_size);
+		int temp = static_cast<int> (maximum_element);
+		maximum_element_map[t] = temp;
+	}
+
+}
+
+void UnitDigraph::calculate_exec_request_matrix_power_without_periodicity(int tf) {
+	for (int t=2; t<=tf; t++) {
+		if (matrix_map.find(t) != matrix_map.end())
+			continue;
+		double** matrix_power = MaxPlusAlgebra::multiply_maxplus_matrix(matrix_map[t-1],matrix_map[1],n_size);
+		matrix_map[t] = matrix_power;
+		double maximum_element = MaxPlusAlgebra::maximum_element(matrix_power, n_size);
+		int temp = static_cast<int> (maximum_element);
+		maximum_element_map[t] = temp;
+	}
 }
 
 int UnitDigraph::get_rbf(int t) {
 	// we should consider the gcd
 	double factor = (double) t/gcd;
 	t = ceil(factor);
+	if (maximum_element_map.find(t) != maximum_element_map.end())
+		return maximum_element_map[t];
+	else 
+		//calculate_exec_request_matrix_power_without_periodicity(t);
+		calculate_exec_request_matrix_power(t);
 	return maximum_element_map[t];
 }
 
@@ -531,8 +700,8 @@ GranDigraph::~GranDigraph() {
 void GranDigraph::prepare(bool debug) {
 
 	// calculate gcd
-	calculate_gcd();
-	
+	//calculate_all_gcd();
+	//gcd = aGCD;
 	// generate GDRT
 	generate_gran_digraph();
 	n_size = node_vec.size();
@@ -619,7 +788,7 @@ void GranDigraph::calculate_linear_period(bool debug) {
 }
 
 void GranDigraph::calculate_linear_defect() {
-	ldef = MaxPlusAlgebra::calculate_linear_defect(matrix_map, maximum_element_map, n_size, lfac, lper, origin->tf);
+	ldef = MaxPlusAlgebra::calculate_linear_defect(matrix_map, maximum_element_map, n_size, lfac, lper, tf,gcd);
 }
 
 void GranDigraph::calculate_exec_request_matrix_power(int tf) {

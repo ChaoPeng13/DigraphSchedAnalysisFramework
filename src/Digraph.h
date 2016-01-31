@@ -36,6 +36,41 @@ using namespace std;
 class UnitDigraph;
 class GranDigraph;
 
+/// \brief an implementation of the demand triple
+class DemandTriple {
+public:
+	int e;
+	int d;
+	Node* node;
+
+	DemandTriple(int _e, int _d, Node* _node) {
+		e = _e;
+		d = _d;
+		node = _node;
+	}
+
+	~DemandTriple() {}
+};
+
+/// \brief an implementation of the utilization triple
+class UtilizationTriple {
+public:
+	int e;
+	int p;
+	Node* start;
+	Node* end;
+
+	UtilizationTriple(int _e, int _p, Node* _start, Node* _end) {
+		e = _e;
+		p = _p;
+		start = _start;
+		end = _end;
+	}
+
+	~UtilizationTriple() {}
+};
+
+
 /// \brief an implementation of the real-time task model. 
 /// M. stigge et al., the digraph real-time task model, rtas2011
 class Digraph {
@@ -47,6 +82,8 @@ public:
 	vector<Node*> node_vec;
 	vector<Edge*> edge_vec;
 
+	vector<Node*> cnode_vec; // critical vertice
+
 	// identify nodes and edges
 	map<Node*, int> node_to_index;
 	map<int, Node*> index_to_node;
@@ -57,7 +94,8 @@ public:
 	int iEdge;
 
 	// gcd
-	int gcd; // greatest common divisor of the minimum separation times 
+	int pGCD; // greatest common divisor of the minimum separation times
+	int aGCD; // greatest common divisor of all the parameters
 	vector<Digraph*> sccs; // the vector of all the strongly connected components
 	vector<Digraph*> hccs; // the vector of all the highly connected components
 
@@ -86,6 +124,8 @@ public:
 	bool strongly_connected;
 	int maximum_degree;
 	double average_degree;
+
+	map<int, int> dbf_map;
 
 	///=============================================================================================================================
 	/// method functions
@@ -148,13 +188,29 @@ public:
 		iEdge++;
 	}
 
-	void calculate_gcd() {
+	void calculate_period_gcd() {
 		int _gcd = 0;
 		for (vector<Edge*>::iterator iter = this->edge_vec.begin(); iter != this->edge_vec.end(); iter++) {
 			Edge* edge = *iter;
 			_gcd = Utility::math_gcd(_gcd, edge->separationTime); 
 		}
-		this->gcd = _gcd;
+		this->pGCD = _gcd;
+	}
+
+	void calculate_all_gcd() {
+		// calculate the greatest common divisor of separation times and wcets
+		int _gcd = 0;
+		for (vector<Edge*>::iterator iter = edge_vec.begin(); iter != edge_vec.end(); iter++) {
+			Edge* edge = *iter;
+			_gcd = Utility::math_gcd(_gcd, edge->separationTime); 
+		}
+
+		for (vector<Node*>::iterator iter = node_vec.begin(); iter != node_vec.end(); iter++) {
+			Node* node = *iter;
+			_gcd = Utility::math_gcd(_gcd, node->wcet);
+		}
+
+		this->aGCD = _gcd;
 	}
 
 	void prepare_digraph();
@@ -164,6 +220,14 @@ public:
 	void check_strongly_connected();
 
 	void calculate_linear_factor();
+	/*
+	 * \brief An implementation of the iterative algorithm for calculating utilization
+	 * in Stigge et al. The digraph real-time task model. RTAS2011.
+	 * In case of the large number of nodes in the unit digraph.
+	 */
+	void calculate_linear_factor2();
+
+	void calculate_csum();
 	void calculate_linear_upper_bounds();
 
 	void scale_wcet(double factor);
@@ -174,6 +238,8 @@ public:
 	
 
 	void prepare_rbf_calculation(bool debug);
+	void prepare_rbf_calculation_without_periodicity(bool debug);
+
 	void prepare_ibf_calculation(bool debug);
 
 	/// \brief return the rbf(t)
@@ -188,6 +254,9 @@ public:
 
 	/// \brief return the dbf(t)
 	double dbf(int t);
+	/// \brief An implementation of the iterative algorithm for calculating dbf
+	/// in Stigge et al. The digraph real-time task model. RTAS2011.
+	double calculate_dbf(int t);
 
 	/// \brief write a digraph object into an output stream in graphviz dot format
 	void write_graphviz(ostream& out);
@@ -226,8 +295,8 @@ public:
 		origin = digraph;
 		scale = digraph->scale;
 		lfac = digraph->linear_factor;
-		gcd = digraph->gcd;
-		tf = digraph->tf;
+		gcd = digraph->pGCD;
+		tf = ceil(1.0*digraph->tf/digraph->pGCD)+10;
 
 		unit_digraph = NULL;
 		gran_digraph = NULL;
@@ -266,16 +335,8 @@ public:
 		iEdge++;
 	}
 
-	void calculate_gcd() {
-		int _gcd = 0;
-		for (vector<Edge*>::iterator iter = origin->edge_vec.begin(); iter != origin->edge_vec.end(); iter++) {
-			Edge* edge = *iter;
-			_gcd = Utility::math_gcd(_gcd, edge->separationTime); 
-		}
-		this->gcd = _gcd;
-	}
-
 	void prepare(bool debug);
+	void prepare_without_periodicity(bool debug);
 	void generate_unit_digraph();
 	void scc_generate_unit_digraph(); // generate unit digraph from a strongly connected component
 	void generate_exec_request_matrix();
@@ -284,6 +345,8 @@ public:
 
 	/// \brief return the rbf execution request matrix at the time t power
 	void calculate_exec_request_matrix_power(int tf);
+	void calculate_exec_request_matrix_power_without_periodicity(int tf);
+
 	int get_rbf(int t);
 
 	/// \brief calculate the dbf_{i,j}(t) = dbf(v_i,v_j,t) by the l-MAD property assumption
@@ -321,7 +384,8 @@ public:
 		origin = digraph;
 		scale = digraph->scale;
 		lfac = digraph->linear_factor;
-		tf = digraph->tf;
+		gcd = digraph->aGCD;
+		tf = ceil(1.0*digraph->tf/digraph->aGCD);
 
 		unit_digraph = NULL;
 		gran_digraph = NULL;
@@ -335,22 +399,6 @@ public:
 
 	void add_node(Node* p_node) { this->node_vec.push_back(p_node); node_to_index.insert(pair<Node*,int>(p_node,iNode++));}
 	void add_edge(Edge* p_edge) { this->edge_vec.push_back(p_edge); edge_to_index.insert(pair<Edge*,int>(p_edge,iEdge++));}
-
-	void calculate_gcd() {
-		// calculate the greatest common divisor of separation times and wcets
-		int _gcd = 0;
-		for (vector<Edge*>::iterator iter = origin->edge_vec.begin(); iter != origin->edge_vec.end(); iter++) {
-			Edge* edge = *iter;
-			_gcd = Utility::math_gcd(_gcd, edge->separationTime); 
-		}
-
-		for (vector<Node*>::iterator iter = origin->node_vec.begin(); iter != origin->node_vec.end(); iter++) {
-			Node* node = *iter;
-			_gcd = Utility::math_gcd(_gcd, node->wcet);
-		}
-
-		this->gcd = _gcd;
-	}
 
 	void prepare(bool debug);
 	void generate_gran_digraph();

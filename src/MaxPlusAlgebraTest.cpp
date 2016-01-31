@@ -1,4 +1,6 @@
-﻿#if 0
+﻿#include "Definitions.h"
+
+#ifdef GOOGLETEST
 #include <gtest/gtest.h>
 
 #include "MaxPlusAlgebra.h"
@@ -9,7 +11,7 @@ extern double POS_INFINITY; // = std::numeric_limits<double>::infinity();
 // define the negative infinity of double
 extern double NEG_INFINITY; // = - std::numeric_limits<double>::infinity();
 
-extern bool compare_tow_matrices(double** A, double** B, int n);
+//extern bool compare_tow_matrices(double** A, double** B, int n);
 
 /**
  * Test an implementation of Theorem 3.6 in M. Gavalec, linear matrix period in max-plus algebra,�Linear Algebra and its Applications, 
@@ -51,7 +53,7 @@ TEST(MaxPlusAlgebraTest, LinearMatrixPeriod)
 		double** temp = MaxPlusAlgebra::periodicly_calculate_maxplus_matrix_power(matrices[t],6,lfac,lper);
 		double** temp2 = matrices[t+lper]; 
 		
-		EXPECT_EQ(compare_tow_matrices(temp,temp2,6), true);
+		EXPECT_EQ(Utility::compare_two_matrices(temp,temp2,6), true);
 	}
 	
 }
@@ -99,7 +101,7 @@ TEST(MaxPlusAlgebraTest, LinearMatrixDefect)
 		//Utility::output_matrix(temp3,5,5);
 		//Utility::output_matrix(matrices[t],5,5);
 		
-		EXPECT_EQ(compare_tow_matrices(temp,temp2,5), true);
+		EXPECT_EQ(Utility::compare_two_matrices(temp,temp2,5), true);
 	}
 	
 }

@@ -21,8 +21,9 @@
 
 class FileReader {
 public:
-	static void DotFileReader(Digraph** &digraphs, int &num, const char* fname);
+	static void DotFileReader(Digraph** &digraphs, int &num, int scale, const char* fname);
 	static void DotFileReader(Stateflow** &sfs, int &num, int scale, const char* fname);
+	static Stateflow* ReadOneStateflow(int scale, const char* fname);
 };
 
 #endif

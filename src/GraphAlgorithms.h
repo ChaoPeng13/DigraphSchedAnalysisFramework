@@ -22,12 +22,14 @@ using namespace std;
 /// In this class, all the member functions are static for supporting direct access.
 class GraphAlgorithms {
 public:
-	// friend class StronglyConnectedComponent;
-	// friend class Node;
-	// friend class Digraph;
-	// friend class Stateflow;
 
 	static double calculate_maximum_cycle_mean(Digraph* digraph);
+	/*
+	 * \brief An implementation of the iterative algorithm for calculating utilization
+	 * in Stigge et al. The digraph real-time task model. RTAS2011.
+	 * In case of the large number of nodes in the unit digraph.
+	 */
+	static double calculate_maximum_cycle_mean2(Digraph* digraph);
 	static double calculate_maximum_cycle_mean(double** A, int n);
 	static double calculate_maximum_cycle_mean(GeneralDirectedGraph* gDigraph);
 	

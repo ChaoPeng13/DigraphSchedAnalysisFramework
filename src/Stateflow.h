@@ -25,6 +25,9 @@
 #include "GeneralDirectedGraph.h"
 #include "Utility.h"
 #include "StateAndTransition.h"
+#include "ActionPair.h"
+#include "RequestFunction.h"
+#include "AbstractRequestFunctionTree.h"
 
 #pragma once;
 
@@ -122,9 +125,35 @@ public:
 	vector<StartFinishTime*> rbf_vec; // vector of rbf[s,f)
 	vector<StartFinishTime*> ibf_vec; // vector of ibf[s,f)
 
+	static double tDiff;
+	static double tCalWithoutPeriodicity;
+	static double tCalWithPeriodicity;
+
+	map<int, vector<ActionPair>> mCAP; // critical action pairs
+	int maxDeadline;
+	vector<RequestFunction> CRF;
+	map<int, map<int,AbstractRequestFunctionTree>> mmARFT; // [s][f] abstract request function tree
+
 	///=============================================================================================================================
 	/// method functions
 	///=============================================================================================================================
+	Stateflow() {
+		this->scale = 0;
+		iState = 0;
+		iTran = 0;
+
+		isIrred = false;
+
+		rbfs = NULL;
+		exec_req_matrix = NULL;
+
+		simple_digraph = NULL;
+		precise_digraph = NULL;
+		exec_digraph = NULL;
+
+		n_time_instance = -1;
+	}
+
 	Stateflow(int _scale) { 
 		this->scale = _scale;
 		iState = 0;
@@ -138,6 +167,8 @@ public:
 		simple_digraph = NULL;
 		precise_digraph = NULL;
 		exec_digraph = NULL;
+
+		n_time_instance = -1;
 	}
 
 	Stateflow(int _index, int _scale) {
@@ -155,6 +186,8 @@ public:
 		simple_digraph = NULL;
 		precise_digraph = NULL;
 		exec_digraph = NULL;
+
+		n_time_instance = -1;
 	}
 
 	~Stateflow();
@@ -169,6 +202,7 @@ public:
 	void calculate_gcd(); // calculate the greatest common divisor of periods of transitions
 	void calculate_t_gcd(); // calculate the greatest common divisor of periods and wcets of transitions
 	void calculate_hyperperiod(); // calculate the hyperperiod of the stateflow, i.e., the least common multiple of periods of transitions
+	void calculate_deadlines(); // calculate the deadlines for all the transitions (the minimum period of out-edge transitions)
 
 	void set_state_number(); // set n_state
 

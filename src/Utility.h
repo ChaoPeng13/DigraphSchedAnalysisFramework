@@ -18,6 +18,8 @@
 
 class Utility {
 public:
+	static double EPSILON;
+
 	// return the greatest common divisor for two integers
 	static int math_gcd(int a, int b);
 	static int math_lcm(int a, int b);
@@ -25,6 +27,7 @@ public:
 	static double** creat_matrix(int nrow, int ncol);
 	static void output_matrix(double** A, int nrow, int ncol);
 	static double* uniformly_distributed(int n, double tUtil);
+	static bool compare_two_matrices(double** A, double** B, int n);
 };
 
 #endif

@@ -212,7 +212,7 @@ int MaxPlusAlgebra::calculate_gcd_cycle_length_hcc(double** A, int n, std::set<i
 
 /// \brief calculate the linear defect for a reducible matrix
 /// Find the first r that satisfies A^(r+p） = A^(r) + p \times q
-int MaxPlusAlgebra::calculate_linear_defect(std::map<int, double**> &m_map,  std::map<int, int> &me_map, int n, double lfac, int lper, int tf) {
+int MaxPlusAlgebra::calculate_linear_defect(std::map<int, double**> &m_map,  std::map<int, int> &me_map, int n, double lfac, int lper, int tf, int gcd) {
 	double** A;
 	for (int t=2; t<=tf; t++) {
 		if (m_map.find(t) != m_map.end())
@@ -231,7 +231,7 @@ int MaxPlusAlgebra::calculate_linear_defect(std::map<int, double**> &m_map,  std
 			for ( int i=0; i<n; i++) {
 				for (int j=0; j<n; j++) {
 					double a = A[i][j];
-					double b = B[i][j]+lfac*lper;
+					double b = B[i][j]+lfac*gcd*lper;
 				
 					//std::cout<<"a="<<a<<"\tb="<<b<<std::endl;
 					if (abs(a-b)>EPSILON) {
@@ -239,6 +239,7 @@ int MaxPlusAlgebra::calculate_linear_defect(std::map<int, double**> &m_map,  std
 						break;
 					}
 				}
+				if (!found) break;
 			}
 			if(found) return t-lper;
 		}
@@ -307,6 +308,35 @@ double** MaxPlusAlgebra::multiply_maxplus_matrix(double** A, double** B, int n) 
 		for (int j=0; j<n; j++) 
 			for (int k=0; k<n; k++)
 				C[i][j] = std::max(C[i][j],A[i][k]+B[k][j]);
+
+	return C;
+}
+
+double** MaxPlusAlgebra::power_maxplus_matrix(double** A, int n, int power) {
+	double** C = new double*[n];
+	for (int i=0; i<n; i++) C[i] = new double[n];
+
+	for (int i=0; i<n; i++) for (int j=0; j<n; j++) C[i][j] = NEG_INFINITY;
+
+	double** B = new double*[n];
+	for (int i=0; i<n; i++) B[i] = new double[n];
+	for (int i=0; i<n; i++) for (int j=0; j<n; j++) B[i][j] = A[i][j];
+
+	for (int tp = 2; tp <= power; tp++) {
+		for (int i=0; i<n; i++)
+			for (int j=0; j<n; j++) 
+				for (int k=0; k<n; k++)
+					C[i][j] = std::max(C[i][j],A[i][k]+B[k][j]);
+
+		for (int i=0; i<n; i++)
+			for (int j=0; j<n; j++) {
+				B[i][j] = C[i][j];
+				C[i][j] = NEG_INFINITY;
+			}
+	}
+
+	for (int i=0; i<n; i++) delete[] B[i];
+	delete[] B;
 
 	return C;
 }
